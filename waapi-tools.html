@@ -1091,6 +1091,11 @@
                 const result = await ipcRenderer.invoke('waapi-reset-faders-scan', port, scope);
                 resetFadersResults = result.results || [];
                 updateResetFadersTable();
+                
+                // 显示检测结果提示
+                const countText = typeof t === 'function' ? t('resetFaders.resultsCount') : '个对象';
+                alert((typeof t === 'function' ? t('resetFaders.scanSuccess') : '检测完成') + `：找到 ${resetFadersResults.length} ${countText}`);
+                
                 // 检查是否有未归零对象
                 const hasNonZero = resetFadersResults.some(item => {
                     const status = item.status || '';
@@ -1384,8 +1389,14 @@
                 const result = await ipcRenderer.invoke('waapi-delete-events-scan', port);
                 deleteEventsResults = result.results || [];
                 updateDeleteEventsTable();
+                
+                // 显示检测结果提示
+                const countText = typeof t === 'function' ? t('deleteEvents.resultsCount') : '个Event';
                 if (deleteEventsResults.length > 0) {
+                    alert((typeof t === 'function' ? t('deleteEvents.scanSuccess') : '扫描完成') + `：找到 ${deleteEventsResults.length} ${countText}`);
                     deleteEventsConfirmBtn.style.display = 'inline-block';
+                } else {
+                    alert(typeof t === 'function' ? t('deleteEvents.scanNoResults') : '扫描完成：未找到无效Event');
                 }
             } catch (error) {
                 alert((typeof t === 'function' ? t('deleteEvents.alertScanFailed') : '扫描失败') + ': ' + error.message);
@@ -1567,8 +1578,14 @@
                 const result = await ipcRenderer.invoke('waapi-set-streaming-scan', port, threshold);
                 setStreamingResults = result.results || [];
                 updateSetStreamingTable();
+                
+                // 显示检测结果提示
+                const countText = typeof t === 'function' ? t('setStreaming.resultsCount') : '个对象';
                 if (setStreamingResults.length > 0) {
+                    alert((typeof t === 'function' ? t('setStreaming.scanSuccess') : '检测完成') + `：找到 ${setStreamingResults.length} ${countText}`);
                     setStreamingConfirmBtn.style.display = 'inline-block';
+                } else {
+                    alert(typeof t === 'function' ? t('setStreaming.scanNoResults') : '检测完成：未找到满足条件的对象');
                 }
             } catch (error) {
                 alert((typeof t === 'function' ? t('setStreaming.alertScanFailed') : '检测失败') + ': ' + error.message);
