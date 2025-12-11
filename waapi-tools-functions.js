@@ -10,27 +10,59 @@ const path = require('path');
  */
 function createConnection(port) {
     return new Promise((resolve, reject) => {
+        let isOpened = false; // 跟踪连接是否已成功打开
+        
         const connection = new autobahn.Connection({
             url: `ws://127.0.0.1:${port}/waapi`,
             realm: 'realm1',
-            retry_if_unreachable: 1
+            protocols: ['wamp.2.json']
         });
 
         const timeout = setTimeout(() => {
-            connection.close();
-            reject(new Error('连接超时'));
-        }, 5000);
+            if (!isOpened) {
+                if (connection.isConnected) {
+                    connection.close();
+                }
+                reject(new Error('连接超时'));
+            }
+        }, 10000); // 增加到10秒超时
 
         connection.onopen = (session) => {
             clearTimeout(timeout);
+            isOpened = true;
             resolve({ session, connection });
         };
 
-        connection.onclose = (reason) => {
+        connection.onclose = (reason, details) => {
             clearTimeout(timeout);
-            const isNormalClose = reason === 'closed' || reason === 'wamp.error.goodbye_and_out';
-            if (!isNormalClose) {
-                reject(new Error(`连接失败: ${reason}`));
+            
+            // 如果连接从未成功打开，则视为失败
+            if (!isOpened) {
+                // 参考官方示例：wamp.error.goodbye_and_out 和 'closed' 是正常的服务器关闭
+                // 'lost' 通常表示网络连接丢失，也可能是正常的（如服务器主动关闭）
+                const isNormalClose = reason === 'closed' || 
+                                     reason === 'wamp.error.goodbye_and_out' || 
+                                     reason === 'lost';
+                
+                if (!isNormalClose) {
+                    // 提供更详细的错误信息
+                    const errorMsg = details && details.message 
+                        ? `连接失败: ${reason} - ${details.message}` 
+                        : `连接失败: ${reason}`;
+                    reject(new Error(errorMsg));
+                } else {
+                    // 正常关闭但未打开，可能是服务器拒绝连接
+                    reject(new Error(`无法连接到 Wwise (端口 ${port})，请确保 Wwise 已启动并启用了 WAAPI`));
+                }
+            }
+            // 如果已经成功打开，正常关闭不处理，让 Promise 正常完成
+        };
+
+        // 添加错误处理
+        connection.onerror = (error) => {
+            clearTimeout(timeout);
+            if (!isOpened) {
+                reject(new Error(`连接错误: ${error.message || error}`));
             }
         };
 
@@ -71,7 +103,10 @@ async function* walkWproj(session, startGuidsOrPaths, properties = [], types = [
     }
 
     try {
-        const result = await session.call(ak.wwise.core.object.get, [], { waql }, options);
+        const result = await session.call(ak.wwise.core.object.get, [], {
+            waql: waql,
+            return: returnProps
+        });
         const objects = result.kwargs?.return || result.return || [];
 
         for (const obj of objects) {
@@ -98,7 +133,10 @@ async function* walkWproj(session, startGuidsOrPaths, properties = [], types = [
                 throw error;
             }
 
-            const result = await session.call(ak.wwise.core.object.get, [], { waql: directWaql }, options);
+            const result = await session.call(ak.wwise.core.object.get, [], {
+                waql: directWaql,
+                return: returnProps
+            });
             const objects = result.kwargs?.return || result.return || [];
             
             for (const obj of objects) {
@@ -136,8 +174,7 @@ async function getSelectedObjects(session) {
 async function getPropertyValue(session, objectId, propertyName) {
     try {
         const result = await session.call(ak.wwise.core.object.get, [], {
-            waql: `"${objectId}"`
-        }, {
+            waql: `"${objectId}"`,
             return: [propertyName]
         });
 
@@ -176,8 +213,7 @@ async function setPropertyValue(session, objectId, propertyName, value) {
 async function doesObjectExist(session, objectId) {
     try {
         const result = await session.call(ak.wwise.core.object.get, [], {
-            waql: `"${objectId}"`
-        }, {
+            waql: `"${objectId}"`,
             return: ['id']
         });
 
@@ -230,10 +266,26 @@ async function deleteObject(session, objectId) {
  * 测试连接
  */
 async function testConnection(port = 8080) {
-    const { session, connection } = await createConnection(port);
+    let connection = null;
     try {
+        const { session, connection: conn } = await createConnection(port);
+        connection = conn;
+        
         const wwiseInfo = await session.call(ak.wwise.core.getInfo, [], {});
-        const projectInfo = await session.call(ak.wwise.core.getProjectInfo, [], {});
+        
+        // 尝试获取项目信息（旧版本可能不支持 getProjectInfo）
+        let projectInfo = null;
+        try {
+            projectInfo = await session.call(ak.wwise.core.getProjectInfo, [], {});
+        } catch (projectInfoError) {
+            // 如果 getProjectInfo 不存在（旧版本），跳过项目信息获取
+            if (projectInfoError.error === 'ak.wwise.invalid_procedure_uri' || 
+                projectInfoError.error === 'wamp.error.no_such_procedure') {
+                // 旧版本不支持，继续执行但不获取项目信息
+            } else {
+                throw projectInfoError; // 其他错误继续抛出
+            }
+        }
 
         let version = '未知版本';
         if (wwiseInfo.kwargs?.version) {
@@ -247,24 +299,76 @@ async function testConnection(port = 8080) {
         }
 
         let projectName = '未命名项目';
-        if (projectInfo.kwargs?.project?.name) {
-            projectName = projectInfo.kwargs.project.name;
-        } else if (projectInfo.kwargs?.name) {
-            projectName = projectInfo.kwargs.name;
-        } else if (projectInfo.project?.name) {
-            projectName = projectInfo.project.name;
-        } else if (projectInfo.name) {
-            projectName = projectInfo.name;
+        let projectPath = '';
+        
+        if (projectInfo) {
+            // 调试：输出项目信息的完整结构（仅在开发时使用）
+            // console.log('ProjectInfo structure:', JSON.stringify(projectInfo, null, 2));
+            
+            // 尝试多种方式获取项目名称
+            if (projectInfo.kwargs?.project?.name) {
+                projectName = projectInfo.kwargs.project.name;
+            } else if (projectInfo.kwargs?.name) {
+                projectName = projectInfo.kwargs.name;
+            } else if (projectInfo.project?.name) {
+                projectName = projectInfo.project.name;
+            } else if (projectInfo.name) {
+                projectName = projectInfo.name;
+            }
+            
+            // 获取项目路径
+            projectPath = projectInfo.kwargs?.project?.path || 
+                         projectInfo.project?.path || 
+                         projectInfo.kwargs?.path || 
+                         projectInfo.path || 
+                         '';
+            
+            // 如果名称还是默认值，尝试从路径中提取
+            if (projectName === '未命名项目' && projectPath) {
+                const pathParts = projectPath.split(/[/\\]/);
+                const wprojFile = pathParts.find(part => part.endsWith('.wproj'));
+                if (wprojFile) {
+                    projectName = wprojFile.replace('.wproj', '');
+                }
+            }
+            
+            // 如果还是没有获取到，尝试通过查询项目根对象获取名称
+            if (projectName === '未命名项目') {
+                try {
+                    const projectRootResult = await session.call(ak.wwise.core.object.get, [], {
+                        waql: '\\Actor-Mixer Hierarchy\\Default Work Unit',
+                        return: ['filePath']
+                    });
+                    const projectRoot = projectRootResult.kwargs?.return || projectRootResult.return || [];
+                    if (projectRoot.length > 0 && projectRoot[0].filePath) {
+                        const rootPath = projectRoot[0].filePath;
+                        // 从 Default Work Unit 路径向上查找 .wproj 文件
+                        const pathParts = rootPath.split(/[/\\]/);
+                        for (let i = pathParts.length - 1; i >= 0; i--) {
+                            if (pathParts[i].endsWith('.wproj')) {
+                                projectName = pathParts[i].replace('.wproj', '');
+                                break;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    // 忽略错误，继续使用默认名称
+                }
+            }
         }
 
-        connection.close();
+        if (connection && connection.isConnected) {
+            connection.close();
+        }
         return {
             success: true,
             projectName,
             wwiseVersion: version
         };
     } catch (error) {
-        connection.close();
+        if (connection && connection.isConnected) {
+            connection.close();
+        }
         return {
             success: false,
             message: error.error || error.message || '连接失败'
@@ -338,8 +442,7 @@ async function resetFadersScan(port, scope) {
             if (includeSelected) {
                 try {
                     const objResult = await session.call(ak.wwise.core.object.get, [], {
-                        waql: `"${startGuid}"`
-                    }, {
+                        waql: `"${startGuid}"`,
                         return: ['id', 'name', 'type', 'notes']
                     });
                     const obj = (objResult.kwargs?.return || objResult.return || [])[0];
