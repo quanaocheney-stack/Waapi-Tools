@@ -23,7 +23,7 @@ function createConnection(port) {
                 if (connection.isConnected) {
                     connection.close();
                 }
-                reject(new Error('连接超时'));
+                reject(new Error('Connection timeout'));
             }
         }, 10000); // 增加到10秒超时
 
@@ -46,13 +46,13 @@ function createConnection(port) {
                 
                 if (!isNormalClose) {
                     // 提供更详细的错误信息
-                    const errorMsg = details && details.message 
-                        ? `连接失败: ${reason} - ${details.message}` 
-                        : `连接失败: ${reason}`;
+                    const errorMsg = details && details.message
+                        ? `Connection failed: ${reason} - ${details.message}` 
+                        : `Connection failed: ${reason}`;
                     reject(new Error(errorMsg));
                 } else {
                     // 正常关闭但未打开，可能是服务器拒绝连接
-                    reject(new Error(`无法连接到 Wwise (端口 ${port})，请确保 Wwise 已启动并启用了 WAAPI`));
+                    reject(new Error(`Cannot connect to Wwise (port ${port}), please ensure Wwise is running and WAAPI is enabled`));
                 }
             }
             // 如果已经成功打开，正常关闭不处理，让 Promise 正常完成
@@ -62,7 +62,7 @@ function createConnection(port) {
         connection.onerror = (error) => {
             clearTimeout(timeout);
             if (!isOpened) {
-                reject(new Error(`连接错误: ${error.message || error}`));
+                    reject(new Error(`Connection error: ${error.message || error}`));
             }
         };
 
@@ -103,9 +103,23 @@ async function* walkWproj(session, startGuidsOrPaths, properties = [], types = [
     }
 
     try {
-        const result = await session.call(ak.wwise.core.object.get, [], {
-            waql: waql
-        }, options);
+        // 先尝试使用 return 参数（新版本）
+        let result;
+        try {
+            result = await session.call(ak.wwise.core.object.get, [], {
+                waql: waql
+            }, options);
+        } catch (returnError) {
+            // 如果 return 参数不被支持（旧版本如2019），尝试不使用 return
+            if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                returnError.error === 'ak.wwise.schema_validation_failed') {
+                result = await session.call(ak.wwise.core.object.get, [], {
+                    waql: waql
+                });
+            } else {
+                throw returnError;
+            }
+        }
         const objects = result.kwargs?.return || result.return || [];
 
         for (const obj of objects) {
@@ -132,9 +146,23 @@ async function* walkWproj(session, startGuidsOrPaths, properties = [], types = [
                 throw error;
             }
 
-            const result = await session.call(ak.wwise.core.object.get, [], {
-                waql: directWaql
-            }, options);
+            // 先尝试使用 return 参数（新版本）
+            let result;
+            try {
+                result = await session.call(ak.wwise.core.object.get, [], {
+                    waql: directWaql
+                }, options);
+            } catch (returnError) {
+                // 如果 return 参数不被支持（旧版本如2019），尝试不使用 return
+                if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                    returnError.error === 'ak.wwise.schema_validation_failed') {
+                    result = await session.call(ak.wwise.core.object.get, [], {
+                        waql: directWaql
+                    });
+                } else {
+                    throw returnError;
+                }
+            }
             const objects = result.kwargs?.return || result.return || [];
             
             for (const obj of objects) {
@@ -159,12 +187,29 @@ async function* walkWproj(session, startGuidsOrPaths, properties = [], types = [
  */
 async function getSelectedObjects(session) {
     try {
-        const result = await session.call(ak.wwise.ui.getSelectedObjects, [], {}, {
-            return: ["name", "id", "volume", "type", "path", "playbackDuration"]
-        });
-        return result.kwargs?.objects || result.objects || [];
+        // 先尝试使用 return 参数（新版本）
+        let result;
+        try {
+            result = await session.call(ak.wwise.ui.getSelectedObjects, [], {}, {
+                return: ["name", "id", "volume", "type", "path", "playbackDuration"]
+            });
+        } catch (returnError) {
+            // 如果 return 参数不被支持（旧版本如2019），尝试不使用 return
+            if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                returnError.error === 'ak.wwise.schema_validation_failed') {
+                result = await session.call(ak.wwise.ui.getSelectedObjects, [], {});
+            } else {
+                throw returnError;
+            }
+        }
+        
+        const objects = result.kwargs?.objects || result.objects || [];
+        
+        
+        return objects;
     } catch (error) {
-        throw new Error(`获取选中对象失败: ${error.error || error.message}`);
+        const errorMsg = error.error || error.message || 'Unknown error';
+        throw new Error(`Failed to get selected objects: ${errorMsg}`);
     }
 }
 
@@ -173,11 +218,25 @@ async function getSelectedObjects(session) {
  */
 async function getPropertyValue(session, objectId, propertyName) {
     try {
-        const result = await session.call(ak.wwise.core.object.get, [], {
-            waql: `"${objectId}"`
-        }, {
-            return: [propertyName]
-        });
+        // 先尝试使用 return 参数（新版本）
+        let result;
+        try {
+            result = await session.call(ak.wwise.core.object.get, [], {
+                waql: `"${objectId}"`
+            }, {
+                return: [propertyName]
+            });
+        } catch (returnError) {
+            // 如果 return 参数不被支持（旧版本如2019），尝试不使用 return
+            if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                returnError.error === 'ak.wwise.schema_validation_failed') {
+                result = await session.call(ak.wwise.core.object.get, [], {
+                    waql: `"${objectId}"`
+                });
+            } else {
+                throw returnError;
+            }
+        }
 
         const objects = result.kwargs?.return || result.return || [];
         if (objects.length === 0) {
@@ -213,11 +272,25 @@ async function setPropertyValue(session, objectId, propertyName, value) {
  */
 async function doesObjectExist(session, objectId) {
     try {
-        const result = await session.call(ak.wwise.core.object.get, [], {
-            waql: `"${objectId}"`
-        }, {
-            return: ['id']
-        });
+        // 先尝试使用 return 参数（新版本）
+        let result;
+        try {
+            result = await session.call(ak.wwise.core.object.get, [], {
+                waql: `"${objectId}"`
+            }, {
+                return: ['id']
+            });
+        } catch (returnError) {
+            // 如果 return 参数不被支持（旧版本如2019），尝试不使用 return
+            if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                returnError.error === 'ak.wwise.schema_validation_failed') {
+                result = await session.call(ak.wwise.core.object.get, [], {
+                    waql: `"${objectId}"`
+                });
+            } else {
+                throw returnError;
+            }
+        }
 
         const objects = result.kwargs?.return || result.return || [];
         return objects.length > 0;
@@ -337,11 +410,25 @@ async function testConnection(port = 8080) {
             // 如果还是没有获取到，尝试通过查询项目根对象获取名称
             if (projectName === '未命名项目') {
                 try {
-                    const projectRootResult = await session.call(ak.wwise.core.object.get, [], {
-                        waql: '\\Actor-Mixer Hierarchy\\Default Work Unit'
-                    }, {
-                        return: ['filePath']
-                    });
+                    // 先尝试使用 return 参数（新版本）
+                    let projectRootResult;
+                    try {
+                        projectRootResult = await session.call(ak.wwise.core.object.get, [], {
+                            waql: '\\Actor-Mixer Hierarchy\\Default Work Unit'
+                        }, {
+                            return: ['filePath']
+                        });
+                    } catch (returnError) {
+                        // 如果 return 参数不被支持（旧版本如2019），尝试不使用 return
+                        if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                            returnError.error === 'ak.wwise.schema_validation_failed') {
+                            projectRootResult = await session.call(ak.wwise.core.object.get, [], {
+                                waql: '\\Actor-Mixer Hierarchy\\Default Work Unit'
+                            });
+                        } else {
+                            throw returnError;
+                        }
+                    }
                     const projectRoot = projectRootResult.kwargs?.return || projectRootResult.return || [];
                     if (projectRoot.length > 0 && projectRoot[0].filePath) {
                         const rootPath = projectRoot[0].filePath;
@@ -374,7 +461,7 @@ async function testConnection(port = 8080) {
         }
         return {
             success: false,
-            message: error.error || error.message || '连接失败'
+            message: error.error || error.message || 'Connection failed'
         };
     }
 }
@@ -405,13 +492,13 @@ async function getOriginalsPath(port = 8080) {
 
         return {
             success: false,
-            message: '无法找到Originals文件夹'
+            message: 'Cannot find Originals folder'
         };
     } catch (error) {
         connection.close();
         return {
             success: false,
-            message: error.error || error.message || '获取路径失败'
+            message: error.error || error.message || 'Failed to get path'
         };
     }
 }
@@ -422,12 +509,13 @@ async function getOriginalsPath(port = 8080) {
 async function resetFadersScan(port, scope) {
     const { session, connection } = await createConnection(port);
     try {
+        
         const selectedObjects = await getSelectedObjects(session);
         if (selectedObjects.length === 0) {
             connection.close();
             return {
                 success: false,
-                message: '请先在Wwise中选择要重置的对象'
+                message: 'Please select objects in Wwise first'
             };
         }
         
@@ -447,11 +535,25 @@ async function resetFadersScan(port, scope) {
             // 如果包含选中对象本身
             if (includeSelected) {
                 try {
-                    const objResult = await session.call(ak.wwise.core.object.get, [], {
-                        waql: `"${startGuid}"`
-                    }, {
-                        return: ['id', 'name', 'type', 'notes']
-                    });
+                    // 先尝试使用 return 参数（新版本）
+                    let objResult;
+                    try {
+                        objResult = await session.call(ak.wwise.core.object.get, [], {
+                            waql: `"${startGuid}"`
+                        }, {
+                            return: ['id', 'name', 'type', 'notes']
+                        });
+                    } catch (returnError) {
+                        // 如果 return 参数不被支持（旧版本如2019），尝试不使用 return
+                        if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                            returnError.error === 'ak.wwise.schema_validation_failed') {
+                            objResult = await session.call(ak.wwise.core.object.get, [], {
+                                waql: `"${startGuid}"`
+                            });
+                        } else {
+                            throw returnError;
+                        }
+                    }
                     const obj = (objResult.kwargs?.return || objResult.return || [])[0];
                     if (obj && !processedIds.has(obj.id)) {
                         const objNotes = obj.notes || '';
@@ -478,7 +580,7 @@ async function resetFadersScan(port, scope) {
                         }
                     }
                 } catch (error) {
-                    console.error('查询对象失败:', error);
+                    console.error('Failed to query object:', error);
                 }
             }
 
@@ -537,9 +639,10 @@ async function resetFadersScan(port, scope) {
         };
     } catch (error) {
         connection.close();
+        const errorMsg = error.error || error.message || 'Scan failed';
         return {
             success: false,
-            message: error.error || error.message || '扫描失败',
+            message: errorMsg,
             results: []
         };
     }
@@ -571,7 +674,7 @@ async function locateObject(port, objectId) {
             } catch (oldCmdError) {
                 // 如果两个命令都失败，抛出错误
                 console.log('旧版本定位命令也失败:', oldCmdError);
-                throw new Error(`定位失败: ${oldCmdError.error || oldCmdError.message || '未知错误'}`);
+                throw new Error(`Locate failed: ${oldCmdError.error || oldCmdError.message || 'Unknown error'}`);
             }
         }
         
@@ -583,7 +686,7 @@ async function locateObject(port, objectId) {
         connection.close();
         return {
             success: false,
-            message: error.error || error.message || '定位失败'
+            message: error.error || error.message || 'Locate failed'
         };
     }
 }
@@ -615,7 +718,7 @@ async function showListView(port, objectIds, searchValue = '') {
         connection.close();
         return {
             success: false,
-            message: error.error || error.message || '显示到List View失败'
+            message: error.error || error.message || 'Failed to show in List View'
         };
     }
 }
@@ -640,7 +743,7 @@ async function showMultiEditor(port, objectIds) {
         connection.close();
         return {
             success: false,
-            message: error.error || error.message || '显示到Multi Editor失败'
+            message: error.error || error.message || 'Failed to show in Multi Editor'
         };
     }
 }
@@ -683,7 +786,7 @@ async function resetFadersExecute(port, scope, results) {
         connection.close();
         return {
             success: false,
-            message: error.error || error.message || '重置失败',
+            message: error.error || error.message || 'Reset failed',
             count: 0
         };
     }
@@ -795,7 +898,7 @@ async function deleteInvalidEventsExecute(port, results) {
         connection.close();
         return {
             success: false,
-            message: error.error || error.message || '删除失败',
+            message: error.error || error.message || 'Delete failed',
             count: 0
         };
     }
@@ -812,7 +915,7 @@ async function setStreamingScan(port, threshold) {
             connection.close();
             return {
                 success: false,
-                message: '请先在Wwise中选择容器对象'
+                message: 'Please select container objects in Wwise first'
             };
         }
 
@@ -905,7 +1008,7 @@ async function setStreamingExecute(port, threshold, results) {
         connection.close();
         return {
             success: false,
-            message: error.error || error.message || '设置失败',
+            message: error.error || error.message || 'Set failed',
             count: 0
         };
     }

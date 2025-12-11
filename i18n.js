@@ -171,6 +171,19 @@ const i18n = {
         common: {
             cancel: '取消',
             confirm: '确认'
+        },
+        log: {
+            title: '📋 日志',
+            clear: '清除',
+            getSelectedSuccess: '成功获取 {count} 个选中对象: {names}{more}',
+            getSelectedEmpty: '⚠️ 未选中任何对象',
+            getSelectedFailed: '获取选中对象失败: {error}',
+            scanStart: '🔍 开始扫描重置音量推子...',
+            scanFailedNoSelection: '❌ 扫描失败: 请先在Wwise中选择要重置的对象',
+            scanComplete: '✅ 扫描完成，找到 {count} 个对象',
+            scanFailed: '❌ 扫描失败: {error}',
+            unknown: '未知',
+            andMore: ' 等 {count} 个对象'
         }
     },
     en: {
@@ -339,6 +352,19 @@ const i18n = {
         common: {
             cancel: 'Cancel',
             confirm: 'Confirm'
+        },
+        log: {
+            title: '📋 Log',
+            clear: 'Clear',
+            getSelectedSuccess: '✅ Successfully retrieved {count} selected objects: {names}{more}',
+            getSelectedEmpty: '⚠️ No objects selected',
+            getSelectedFailed: 'Failed to get selected objects: {error}',
+            scanStart: '🔍 Starting reset faders scan...',
+            scanFailedNoSelection: '❌ Scan failed: Please select objects in Wwise first',
+            scanComplete: '✅ Scan completed, found {count} objects',
+            scanFailed: '❌ Scan failed: {error}',
+            unknown: 'Unknown',
+            andMore: ' and {count} more objects'
         }
     }
 };
