@@ -1,0 +1,533 @@
+在本文中，我想说说自己很长一段时间以来是如何使用 WAAPI 的。这当中用到了 Python、命令扩展 (Command Add-on) 和一个小的辅助程序 (Helper) 库。藉此，能以比  更快的速度编写新的 WAAPI 脚本，而且大部分情况下跟其他团队成员共用都不会冲突。除此之外，我还会讲到 WAAPI 的基本工作原理，并借此展示一些实用的 WAAPI 脚本。所以，这篇博文对刚开始学习 WAAPI 的新手也不无裨益。对于从旁协助音频团队构建自动化工具的人，不妨将本文看作类似“入门”一样的指南。
+
+注意，文中代码示例仅为阐明本人观点，其中的代码并未经过广泛的测试。另外，各位需要设置 PC 环境才能运行这些代码（详请参阅附录部分的说明）。
+
+基本概念
+首先，我觉得有必要对 Wwise 和 WAAPI 有个基本的了解。
+
+Wwise 工程被分成了不同的对象层级结构，而对象又包含很多种类型（如 Event、RandomSequenceContainer 等）。对象类型决定了对象具有怎样的属性（如 BusVolume、IsStreamingEnabled 等）。在层级结构中，子对象默认沿用其父对象的属性值。所有这些决定了音频引擎在运行时的声音播放规则和配置。
+
+WAAPI 是一种客户端-服务器 API，可用于操控前面所说的层级结构。比如，重命名/移除对象、更改对象属性等等。不过，并非所有参数都能通过 WAAPI 来操控，比如 RTPC（至少在笔者撰写本文时还做不到）。所以，有必要了解 Wwise 工程的组织结构，弄明白不同类型的对象及其属性等。为此，我特地将以下参考页面做成了书签以便各位快速查阅：
+
+Wwise 对象参考（https://www.audiokinetic.com/library/edge/?source=SDK&amp;id=wobjects_index.html） – 所有对象类型及其属性
+
+Wwise Authoring API 参考 – 函数 （https://www.audiokinetic.com/library/edge/?source=SDK&amp;id=waapi_functions_index.html）– 可以查询或修改的内容
+
+Wwise Authoring API 参考 – 主题 –（https://www.audiokinetic.com/library/edge/?source=SDK&amp;id=waapi_topics_index.html） Wwise 设计工具可向用户发送的通知
+
+除此之外，WAAPI 还可提供对象属性中没有列出的对象信息。比如，属性 sound:convertedWemFilePath、sound:originalWavFilePath 和 maxDurationSource（提供计算得出的 AudioSource 对象的 TrimEnd 和 TrimBegin 属性的差值）。它们并未在“Wwise 对象参考”中作为对象属性列出，但 WAAPI 照样可对其进行查询（可能 WAAPI 对工程数据有特殊访问权限）。
+
+对于高级用户，%WWISEROOT%\Authoring\Data\Schemas 下设有用于 WAAPI 和 Wwise 设计工具数据（如 Work Unit）的 JSON 和 XML 架构。在有些情况下，用起来可能会很方便。
+
+注意事项
+WAAPI 脚本并非写得越长越复杂越好，尤其是在自动处理耗时费力的任务时。除了脚本本身，还要注意以下事项：
+
+如何执行脚本。
+
+如何在团队成员之间进行分发。
+
+为此，我们使用了自定义版本的 Total Commander。其存储在 SVN 下，并包含大量便捷的实用工具，可以满足各种技术音频需求。这些工具可通过应用程序顶部的菜单栏/子菜单栏访问。另外，它还包含内嵌的 Python 分发包（附有由我维护的数据包），包括工程特定脚本和 WAAPI 脚本。这样的话，团队成员无需配置自己的电脑就可运行所述工具。而且，我也可以轻松地更新整个环境并与大家同步。不得不说，Total Commander 真的太强悍了！
+
+有的时候，我也会将所有 Python 脚本直接放到 Wwise 工程的 Scripts 目录下。当然，这会将脚本的适用范围限定为特定的工程。
+
+除了 Total Commander 中的按钮，我还喜欢通过命令扩展来调用 WAAPI 脚本。藉此在设计工具中定义相应命令，并用工程特定参数（比如选定对象的 GUID、Wwise 工程的路径等）来随意地运行外部工具。这些命令可以集成到设计工具的菜单中，非常方便使用自定义的 Wwise 相关工具。
+
+流程概述
+为了避繁就简，本文中的 WAAPI 脚本全部通过命令扩展执行，并且 Python 文件本身将放到 Scripts 目录下。为此，用户需要根据情况配置自己的 PC 环境（详请参阅附录部分的说明）。
+
+另外，我还希望将所有错误显示在 GUI 中。根据我的经验，这样就可直接处理声音设计师遇到的问题，而不必让其在控制台窗口中自己费力查找。
+
+Python 工程结构
+以下截图展示了 Scripts 文件夹的结构：
+
+
+几个要点：
+
+根目录只包含由 Wwise 通过命令扩展调用的脚本，所以其不可由其他 Python 文件导入。对此，只有以下两个文件除外：
+
+__init__.py – 该文件将 Scripts 文件夹标记为模块。这样方便我们在当前工作目录被设为 Wwise 工程文件夹时使用来自脚本的相对导入；
+
+_template.py – 该模板文件用于制作新的脚本；其包含样板，用于根据自身需要进行复制、重命名和修改。
+
+子模块包含在脚本之间重复使用的代码或函数。
+
+在脚本执行时会将其路径作为参数传给 Python 解释器。我原本想按照模块名称运行脚本（标记 -m），但后来发现在将当前工作目录设为 ${WwiseProjectRoot} 时无法运行命令扩展，所以暂时没有使用相对导入 1。
+
+按照约定，在脚本遇到错误或检测到数据处于无效状态时会抛出 RuntimeError 异常。此类异常在最外层框架中捕获，相关消息通过对话框窗口显示。
+
+下面列出了 Python 模板代码。这段代码可能看起来挺长，其实是为了实现多项操作：处理错误并显示在 GUI 中，同时提供普通导入。这样使用起来会很方便。在编写新的脚本时，直接复制粘贴模板即可。
+
+# 藉此避免导入此文件
+if __name__ != &#39;__main__&#​39;:
+    print(f&#39;error: {__file__} should not be imported, aborting script&#39;)
+    exit(1)
+
+# tkinter 用于显示警告对话框和其他一些简单的 UI 内容
+import tkinter
+from tkinter.messagebox import showinfo, showerror
+from waapi import WaapiClient, CannotConnectToWaapiException
+from waapi_helpers import *
+from helpers import *
+
+# 可根据需要删除脚本没有使用的导入或添加新的导入
+
+# 初始化 Tk 小组件并避免在任务栏中显示图标
+tk = tkinter.Tk()
+tk.withdraw()
+
+# 此 try-except 代码块旨在捕获运行时错误，
+# 并确保在 GUI 窗口而非控制台中显示给用户
+try:
+    with WaapiClient() as client:
+# 我们的脚本从此处开始
+        pass
+
+except CannotConnectToWaapiException:
+# 在无法连接到运行中的 Wwise 应用程序时输出用户友好消息
+    showerror(&#39;Error&#​39;, &#39;Could not establish the WAAPI connection. Is the Wwise Authoring Tool running?&#39;)
+except RuntimeError as e:
+# 直接由脚本抛出的预期错误
+    showerror(&#39;Error&#​39;, f&#39;{e}&#​39;)
+except Exception as e:
+# 异常错误总是列明堆栈跟踪信息
+    import traceback
+
+    showerror(&#39;Error&#​39;, f&#39;{e}\n\n{traceback.format_exc()}&#39;)
+finally:
+# 需要调用此代码才能停止 Tk 窗口事件循环，
+# 否则此时将停止运行脚本
+    tk.destroy()
+
+配置命令扩展
+关于命令扩展配置其实没什么好说的，因为此流程已在官方文档中详细说明。在此，我将使用  位置存储的单个 JSON 文件来保存所有示例。各位可自行下载随附的存档来查看此文件（参见附录）。
+
+注意，在修改 JSON 文件后，需要在 Wwise 设计工具中重新加载命令扩展。这里并没有用来执行此操作的热键。不过，可通过在“搜索”字段中依次键入右尖括号和 command 来进行搜索并加以执行2：
+
+
+调试 WAAPI 脚本
+Logs 窗口中设有 WAAPI 选项卡，不过默认情况下并不会记录所有内容。各位可根据需要在 Logs Settings 中启用附加日志记录。另外，命令扩展 JSON 中的 redirectOutputs 设置会强制 Wwise 将 Python 脚本的控制台输出重定向到 General 选项卡；默认处于禁用状态。
+
+
+关于 waapi_helpers3
+我编写了一个小的 waapi_helpers 库，并将其用到了本文的示例中。该库由一些小的无状态辅助程序组成。这些辅助程序接受将 WaapiClient 作为参数，因而可与  代码混合使用。所有函数均遵循有关“获取属性”的约定。比如，如有属性不存在，则值应当为 None。简单明了。在这里我暂不细作探讨，具体请查看下面的示例。
+
+示例
+这里展示的大多数例子甚至我自己的大部分 WAAPI 脚本都采用了大致相同的构架：首先遍历 Wwise 工程并收集信息，然后对信息进行处理或转换，最后将更改应用于 Wwise 工程。
+
+例 1：将选定对象的 GUID 复制到剪贴板
+Wwise 中有个非常实用的命令，不需要通过 WAAPI 来实现。因为十分简单，所以我就完整列出了对应的命令扩展 JSON 及 Python 源码。
+
+copy_guid.py（其实没什么特别的，模板的大部分内容都被剥离了）：
+
+if __name__ != &#39;__main__&#​39;:
+    print(f&#39;error: {__file__} should not be imported, aborting script&#39;)
+    exit(1)
+
+# 此为第三方 lib
+import pyperclip  
+# 这个简单的函数以列表形式在 argv 中返回参数
+# 注意此处使用了相对导入，因为有个 &#​39;helpers&#39; 子模块
+from helpers import get_selected_guids_list
+
+guids = get_selected_guids_list()
+pyperclip.copy(&#39; &#​39;.join(guids))
+
+JSON：
+
+{
+    &#34;version&#​34;: 2,
+    &#34;commands&#​34;: [
+        {
+            &#34;id&#​34;: &#34;waapi_article.copy_guid&#​34;,
+            &#34;displayName&#​34;: &#34;Copy GUID&#​34;,
+            &#34;program&#​34;: &#34;python&#​34;,
+            &#34;startMode&#​34;: &#34;MultipleSelectionSingleProcessSpaceSeparated&#34;,
+            &#34;args&#​34;: &#34;\&#​34;${WwiseProjectRoot}/Scripts/copy_guid.py\&#34; ${id}&#​34;,
+            &#34;redirectOutputs&#​34;: false,
+            &#34;contextMenu&#​34;: {
+                &#34;basePath&#​34;: &#34;WAAPI&#​34;
+            }
+        }
+    ]
+}
+
+id – 此新命令的唯一标识符。
+
+displayName – 要针对此命令在菜单中显示的用户可读名称。
+
+program – 要在用户执行此命令时运行的程序；注意，脚本路径用双引号进行了转义。这样的话，Wwise 会将此路径视为单个参数，而不是把其拆分开来。
+
+startMode – Wwise 将调用上述程序一次，并传递采用空格分隔的参数（本例中为对象 GUID）。
+
+args – 传给 Python 的参数：
+
+${WwiseProjectRoot}/Scripts/copy_guid.py 为脚本路径，前后带有用来转义的双引号，为的是在路径包含空格时将其视为单个参数；
+
+${id} 为专用参数，将由 Wwise 替换为选定对象的 GUID。
+
+redirectOutputs – 用于将 stdout 重定向到 Wwise 中的 Logs 窗口以便调试脚本；默认处于禁用状态。
+
+contextMenu – 配置为针对 Wwise 工程层级结构下的所有对象在上下文菜单中显示此命令。在本例中，将生成一个名为 WAAPI 的子组。
+
+在刷新命令扩展后，上下文菜单中将显示如下条目：
+
+
+通过单击该条目，可将以下文本复制到系统剪贴板：
+
+{2E9E3B71-C905-4BB0-9B30-06CFF26E0C5E} {3AD5C9DF-C0B5-4A78-B87A-2EE37D64BFCB} {8F7A715D-5704-4F09-9563-4172E250419B}
+
+例 2：显示所有 Event 的名称
+这段代码并不实用，只是为了展示如何使用  函数来遍历层级结构（样板省略掉了）。
+
+show_event_names.py:
+
+events = []
+with WaapiClient() as client:
+    for guid, name in walk_wproj(client,
+                                 start_guids_or_paths=&#39;\\Events&#​39;,
+                                 properties=[&#39;id&#​39;, &#39;name&#​39;],
+                                 types=[&#39;Event&#​39;]):
+        events.append(name)
+showinfo(&#39;Hi tutorial!&#​39;, &#39;\n&#​39;.join(events))
+
+在此， 函数将从路径 \Events 开始顺着层级结构遍历每个对象，并生成其查到的每个 Event 对象的 id 和 name 属性。此函数将启动我编写的库，以便使用基于 Pythonic 迭代器的简单接口遍历 Wwise 层级结构（跟 XML 库提供的迭代器类似）。除此之外，我还想避免创建和解压 JSON 对象。因为其架构在不同命令之间有差异，这样会很难一直保存在工作内存中。
+
+Event 名称将被汇集成数组，并在完成迭代后一并列出。代码本身并不实用，只是为了演示一下。结果大致如下：
+
+
+例 3：重置音量推子
+有的时候，比如在混音过程中，我希望将层级结构特定部分的所有推子设为零。有以下脚本将针对选定对象的所有子对象执行这一操作（注释中带有 @ignore 标记的除外）。
+
+reset_faders.py:
+
+with WaapiClient() as client:
+    num_reset_faders = 0
+    selected_guid = get_selected_guid()
+
+    for obj_id, obj_type, obj_notes in walk_wproj(client, selected_guid,
+                                                  properties=[&#39;id&#​39;, &#39;type&#​39;, &#39;notes&#​39;]):
+        if &#39;@ignore&#39; in obj_notes:
+            continue
+
+# 注意，我们希望根据对象是属于 Actor-Mixer Hierarchy
+# 还是 Master Mixer Hierarchy 来调节不同的属性
+        prop_name = &#39;Volume&#​39;
+        if obj_type == &#39;Bus&#​39; or obj_type == &#39;AuxBus&#​39;:
+            prop_name = &#39;BusVolume&#​39;
+
+        cur_volume = get_property_value(client, obj_id, prop_name)
+        if cur_volume is not None:
+# 按照约定，若属性不存在，
+# 则 `get_property_value` 返回 None。
+# 这样在对象上没有音量属性时，
+# 将跳过对 `set_property_value` 的调用
+            set_property_value(client, obj_id, prop_name, 0)
+            num_reset_faders += 1
+
+    showinfo(&#39;Info&#​39;, f&#39;{num_reset_faders} faders were reset&#39;)
+
+结果如下：
+
+ 
+
+
+ 
+
+
+
+
+
+例 4：移除无效的 Event
+比方说，我们刚刚从 Actor-Mixer Hierarchy 删除了一堆遗留对象。这样的话可能会留下很多具有无效引用的 Event Action。其中有些 Event 会变得毫无用处，因为其所有 Action 现在引用的对象都不存在了。在这种情况下，可以安全删除这些 Event。为此，可使用 WAAPI 来遍历所有 Event，并确认是否其所有 Action 均指向不存在的对象。若果真如此，则标记 Event 以供删除。
+
+delete_invalid_events.py:
+
+# 一系列引用对象的 Action Type 标识符。
+# 有关详细信息，参见 Action 对象引用。
+action_types_to_check = {1, 2, 7, 9, 34, 37, 41}
+events_to_delete = []
+
+with WaapiClient() as client:
+    num_obj_visited = 0
+    for event_guid, in walk_wproj(client, &#39;\\Events&#​39;, properties=[&#39;id&#​39;], types=[&#39;Event&#​39;]):
+        print(f&#39;Visited: {num_obj_visited}, To delete: {len(events_to_delete)}&#39;, end=&#​39;\r&#39;)
+        num_valid_actions = 0
+        for action_id, action_type, target in walk_wproj(client, event_guid,
+                                                         properties=[&#39;id&#​39;, &#39;ActionType&#​39;, &#39;Target&#​39;],
+                                                         types=[&#39;Action&#​39;]):
+            if action_type in action_types_to_check:
+                if does_object_exist(client, target[&#39;id&#​39;]):
+                    num_valid_actions += 1
+            else:
+                num_valid_actions += 1
+
+        if num_valid_actions == 0:
+            events_to_delete.append(event_guid)
+
+    num_events_to_delete = len(events_to_delete)
+    if num_events_to_delete &gt; 0 \
+            and askyesno(&#39;Confirm&#​39;, f&#39;{num_events_to_delete} events are going to be deleted. Proceed?&#39;):
+        begin_undo_group(client)
+        for event_guid in events_to_delete:
+            delete_object(client, event_guid)
+        end_undo_group(client, &#39;Delete Invalid Events&#​39;)  # capitalized as per Wwise convention
+
+showinfo(&#39;Success&#​39;, f&#39;{len(events_to_delete)} were deleted&#39;)
+
+这段代码稍微有点复杂。
+
+首先，注意这里保存了一组有可能引用对象的 Action Type（如 Play、Stop、Set RTPC 等）。所有引用不存在的对象的 Action Type 都将被视为无效。这组 Action Type 需依据 Action 对象文档手动填入（参见 ActionType 属性说明）。
+
+其次，我们请求了用户允许执行破坏性操作。此时，将显示对话框并询问是否要删除特定数量的 Event。
+
+最后，命令会使用 WAAPI 的 Undo Group 功能。藉此，可在单次“撤销”操作中撤销通过多项 WAAPI 调用做出的更改。该项操作在 Edit 菜单中设有专用名称：Delete Invalid Events。
+
+相关截图：
+
+
+ 
+
+
+
+
+
+例 5：为长 SFX 设置流播放
+要想将 SFX 批量配置为使用流播放并不容易，因为有时设计师会对音频源进行修剪，最终的 Wave 文件长度可能跟运行时的 SFX 时长存在很大差别。截至撰写本文的时候，无论是通过 Wwise Query 还是 WAQL 都无法获取修剪后的 SFX 时长。
+
+幸好，WAAPI 提供有 trimmedDuration 属性。在此，让我们进一步将工具所要设置的流播放参数设为可从 Wwise 设计工具中进行配置。在本例中，我会将配置放在 \Actor-Mixer Hierarchy\Default Work Unit 注释分区，并使用 Python 的 configparser 语法。其实非常简单，而且已经内置到 Python 中。比方说，我们的配置如下图所示：
+
+[Enable_Streaming_For_SFX]
+If_Longer_Than = 10
+Non_Cachable = no
+Zero_Latency = no
+Prefetch_Length_Ms = 400
+
+对于较大的工程，您可能想针对不同类型的声音甚至平台对流播放进行更加精细的控制。这样做的好处在于可针对脚本中的每项特定任务添加配置分区并检索自己需要的配置。
+
+set_streaming_for_long_sfx.py:
+
+with WaapiClient() as client:
+    dwu_notes = get_property_value(
+        client, &#39;\\Actor-Mixer Hierarchy\\Default Work Unit&#39;, &#​39;notes&#39;)
+    if dwu_notes is None:
+        raise RuntimeError(&#39;Could not fetch notes from Default Work Unit&#39;)
+
+    config = configparser.ConfigParser()
+    config.read_string(dwu_notes)
+    if &#39;Enable_Streaming_For_SFX&#​39; not in config:
+        raise RuntimeError(&#39;Could not find [Enable_Streaming_For_SFX] config section&#39;)
+
+    stream_config = config[&#39;Enable_Streaming_For_SFX&#​39;]
+
+    objects_to_modify = []
+    for guid, name, max_dur_src in walk_wproj(client, &#39;\\Actor-Mixer Hierarchy&#​39;,
+                                              [&#39;id&#​39;, &#39;name&#​39;, &#39;maxDurationSource&#​39;], &#39;Sound&#​39;):
+        if max_dur_src is None:
+            continue
+        # trimmedDuration is in seconds, not milliseconds
+        is_long_sound = max_dur_src[&#39;trimmedDuration&#​39;] &gt; stream_config.getfloat(&#39;If_Longer_Than&#​39;)
+        if is_long_sound:
+            objects_to_modify.append(guid)
+            print(name)
+            break
+
+    if len(objects_to_modify) &gt; 0 and \
+            askyesno(&#39;Confirm&#​39;,
+                     f&#39;The tool is about to modify properties of {len(objects_to_modify)} objects. Proceed?&#39;):
+        begin_undo_group(client)
+        for guid in objects_to_modify:
+            set_property_value(client, guid, &#39;IsStreamingEnabled&#​39;, True)
+            set_property_value(client, guid, &#39;IsNonCachable&#​39;, True)  # stream_config.getboolean(&#​39;Non_Cachable&#39;))
+            set_property_value(client, guid, &#39;IsZeroLantency&#​39;, stream_config.getboolean(&#39;Zero_Latency&#​39;))
+            set_property_value(client, guid, &#39;PreFetchLength&#​39;, stream_config.getint(&#39;Prefetch_Length_Ms&#​39;))
+        end_undo_group(client, &#39;Bulk Set SFX Streaming&#​39;)
+        showinfo(&#39;Success&#​39;, f&#39;{len(objects_to_modify)} objects were updated&#39;)
+    else:
+        showinfo(&#39;Success&#​39;, f&#39;No changes have been made&#​39;)
+
+最终的配置如下所示：
+
+
+例 6：将多个容器重构为一个 Switch Container
+有时，我们需要将 Actor-Mixer Hierarchy 下的多个容器重构为一个 Switch Container。对此，可尝试构建相应工具来自动完成此操作：用户选择多个对象并单击按钮来创建新的 Switch Container，同时将选定对象指派给不同的 Switch。在本例中，我将使用 Wwise Adventure Game 工程内的 &#34;Surface_Type&#​34; Switch。
+
+refactor_into_switch_surface_type.py:
+
+with WaapiClient() as client:
+    obj_names = [get_name_of_guid(client, guid)
+                 for guid in selected_guids]
+    if None in obj_names:
+        raise RuntimeError(&#39;Could not get names of all selected objects&#39;)
+   
+    switches = get_switches_for_group_surface_type(client)
+    if len(switches) == 0:
+        raise RuntimeError(&#34;Could not find switches for group &#39;Surface_Type&#​39;&#34;)
+    parent_obj = get_parent_guid(client, selected_guids[0])
+    if parent_obj is None:
+        raise RuntimeError(f&#39;{selected_guids[0]} has no parent&#39;)
+   
+    begin_undo_group(client)
+   
+    switch_obj = create_objects(client, parent_obj, &#39;RENAME_ME&#​39;, &#39;SwitchContainer&#​39;)[0]
+    if switch_obj is not None:
+        set_reference(client, switch_obj, &#39;SwitchGroupOrStateGroup&#​39;,
+                      f&#39;SwitchGroup:{SURFACE_TYPE_SWITCH_GROUP_NAME}&#39;)
+    else:
+# 若脚本在操作当中失败，则回滚更改
+        end_undo_group(client, &#39;Refactor Into Surface_Type Switch&#39;)
+        perform_undo(client)
+        raise RuntimeError(&#39;Could not create switch container under &#39; +
+                           f&#39;{get_name_of_guid(client, parent_obj)}. &#39;
+                           &#39;All changes have been reverted.&#39;)
+   
+# 重新设置选定对象的父对象
+    for guid in selected_guids:
+        res = move_object(client, guid, switch_obj)
+        if res is None:
+            end_undo_group(client, &#39;Refactor Into Surface_Type Switch&#39;)
+            perform_undo(client)
+            raise RuntimeError(
+                f&#39;Could not move object {guid} to parent {switch_obj}. &#39;
+                &#39;All changes have been reverted.&#39;)
+   
+    obj_assignments = infer_obj_assignments(selected_guids, switches)
+   
+    for obj_guid, sw_guid in obj_assignments:
+        client.call(&#39;ak.wwise.core.switchContainer.addAssignment&#39;,
+                    {&#39;child&#​39;: obj_guid, &#39;stateOrSwitch&#​39;: sw_guid})
+   
+    end_undo_group(client, &#39;Refactor Into Surface_Type Switch&#39;)
+
+这段代码比前面的示例要复杂一点。为了避免列表过长，我甚至不得不将有些部分重构为两个函数。第一个函数  为辅助程序，用于获取所有 &#34;Surface_Type&#​34; Switch 的 GUID 和名称。第二个函数  尝试将选定对象与 Switch 进行匹配：对两者的名称进行比较并选择最为相近的 Switch 名称（thefuzz 库的  函数）。
+
+其他注意事项：
+
+代码会在执行当中对不同的数据进行验证。若状态无效，则抛出 RuntimeError 异常。此类异常将以错误窗口形式显示给用户。
+
+对于有些错误路径，在抛出异常之前，脚本会执行“撤销”操作来回滚目前为止通过 WAAPI 所作的全部更改。
+
+另外还可看到对 waapi-client 的直接调用，因为辅助程序库中没有 Switch Container 指派函数。
+
+此脚本并没有经过任何优化，所以肯定有很多不完美之处，可能还存在奇怪的极端案例。只是顺手写的，还请各位注意。
+
+以下截图展示了相应工作机制。
+
+ 
+
+
+ 
+
+
+例 7：从 Originals 文件夹删除未使用的 Wave 文件
+随着时间的推移，Wwise 工程可能会在 Originals 文件夹中收集 Wave 文件。这些文件没有被任何地方引用，所以只会白白地浪费磁盘空间。在这种情况下，用户可按下按钮。这时脚本会要求确认，然后告知是已经全部删除还是保留了部分内容。比如，某个文件是在 Audition 中打开了还是被锁定了。这里有个小窍门，就是在执行此类操作后运行 Integrity Report。
+
+remove_unused_wavs.py:
+
+with WaapiClient() as client:
+    default_wu_path, = get_object(client, &#39;\\Actor-Mixer Hierarchy\\Default Work Unit&#39;, &#​39;filePath&#39;)
+# 此函数会解析 .wproj 文件以确定 &#​39;Originals&#39; 目录的位置
+    origs_dir = find_originals_dir(default_wu_path)
+
+    wavs_in_origs = set()
+    wavs_in_wproj = set()
+
+# 我们不想碰 &#​39;Plugins&#39; 目录
+    for subdir in &#39;SFX&#​39;, &#39;Voices&#​39;:
+        for wav_path in glob(os.path.join(origs_dir, subdir, &#39;**&#​39;, &#39;*.wav&#​39;),
+                             recursive=True):
+            wavs_in_origs.add(normalize_path(wav_path))
+
+# 注意，单个 walk_wproj 可从不同位置
+# 多次遍历层级结构
+    for guid, wav_path in walk_wproj(
+            client,
+            start_guids_or_paths=[&#39;\\Actor-Mixer Hierarchy&#​39;, &#39;\\Interactive Music Hierarchy&#39;],
+            properties=[&#39;id&#​39;, &#39;originalWavFilePath&#​39;],
+            types=[&#39;AudioFileSource&#​39;]
+    ):
+        wavs_in_wproj.add(normalize_path(wav_path))
+
+    wavs_to_remove = wavs_in_origs.difference(wavs_in_wproj)
+    files_left = len(wavs_to_remove)
+
+    if files_left &gt; 0 and askyesno(
+            &#39;Confirm&#​39;, f&#39;You are about to delete {files_left} files. Proceed?&#39;):
+        for wav_path in wavs_to_remove:
+            try:
+                os.remove(wav_path)
+                files_left -= 1
+            except PermissionError:
+                pass
+
+        if files_left == 0:
+            showinfo(&#39;Success&#​39;,
+                     f&#39;{len(wavs_to_remove)} files were deleted&#39;)
+        else:
+            showwarning(&#39;Warning&#​39;,
+                        f&#39;{files_left} files could not have been deleted. &#39;
+                        f&#39;Are they open in some apps?&#​39;)
+
+虽然这段代码看起来比前面的示例简单，但这里遇到了对 WAAPI 的一些限制，而不得不解析 Wwise 工程文件来获取 Originals 文件夹的路径。最初，我以为这些信息是存储在 Project 对象中的，但显然不是，最后我也没能找到其他方法来进行查询。
+
+除此之外，我还尝试了通过  来检索所有 AudioFileSource 类型的对象。不过，Wwise 对象参考页面并未列出此类型。最相近的类型为 AudioSource，其有可能为父类型，但对此我无法确定。之所以做此尝试是因为我解析并生成了 Work Unit XML，记得好像 Wave 文件加了  标记。后来我就想，这样做有可能会比较便捷一些。另外，此类型被列在了 %WWISEROOT%\Authoring\Data\Schemas 位置的 XML 架构文件中。
+
+相关截图：
+
+
+
+
+
+ 
+例 8：自动导入 Wave 文件
+在很多情况下，游戏中的声音会被存放到不同的层级结构，而且这些声音可能包含多个分层。各个分层会输出到不同的总线，并由不同的 RTPC 控制。其中有些可构建为带插槽的层级结构，以便关联音频素材并创建特定的声音。其实，有点像复制现有层级结构，并在相应插槽中替换素材。
+
+当然，我们可以通过 WAAPI 完成这一操作。为直观起见，我们来看看下面的用例。
+
+用户配置模板层级结构并为其各个部分做注释，来指定模板名称、插槽及其名称等。在下图中，Gun 模板设有 Shot、Tail_Indoor 和 Tail_Outdoor 插槽。
+
+
+
+用户右键单击模板并按下按钮。系统提示选择包含统一命名的 Wave 文件的目录。在选择之后，工具会扫描目录并查找与模板名称匹配的文件。 
+
+ 
+
+
+
+ 
+
+
+
+ 
+
+
+在用户确认导入后，将复制、重命名模板并在插槽中填入 Wave 文件。
+
+
+
+在截图中，工具一次性导入了两个声音对象：M4 和 M1911。同时，将模板对象 GUID 记录到了枪械对应 Virtual Folder 的注释中，以便其他脚本在需要时对其进行扫描。
+
+在将 WaapiClient 实例化时考虑使用 allow_exception=True。这样可以捕获 WAAPI 特定异常，并向用户提供更为详细的错误消息。比如，在 Wwise 中打开某些对话框窗口的时候。
+
+按照我们的 Python 工程约定，所有命令扩展脚本会直接放到 Scripts 文件夹下。藉此，可自动生成命令扩展 JSON 文件。
+
+按照类似于 YAML 扉页的方式拆分 notes 分区的配置来使其更加有条理。这种方式在很多网站构建框架（如 Jekyll）中都有使用。这样的话便可同时使用系统内嵌和手动添加的注释。
+
+在例 4 中，除了删除无效的 Event，也应删除无效的 Action。因为它们当前在工程中根本就没有用，Integrity Report 中可能还会报告错误。
+
+Switch 重构命令可使用某些算法来赋予 Switch 以最为相近的名称。比如，获取所有选定对象共有的子字符串，或者…由 AI 来自动对文本进行汇总！
+
+Git
+
+Python 3：只要是最近的版本应该就行。不过，在安装过程中一定要勾选复选框来将 Python 执行文件添加到 PATH，同时安装 pip 和 tcl/Tk 组件
+
+Wwise 2021：如果想完全依照步骤操作，请安装 Wwise Adventure Game
+
+在 Wwise 工程设置中，确保启用 WAAPI
+
+这是一个已经确认的漏洞，其与 redirectOutput 选项跟自定义 cwd 的交互有关。↩
+
+真希望自己能早点学会这一小窍门，因为之前每次更新 JSON 之后都是重新启动 Wwise 设计工具。↩
+
+为免广告之嫌，我对使用 waapi-client 最上面编写的封装器做了一些保留。说实话，我几乎没怎么在 Python 中用过 WAAPI，而且已经记不太清楚常用 WAAPI 函数的 JSON 架构。我并不是让大家都使用我的工具，而只是建议参阅其中的示例代码。↩
+
+演讲时用的是俄语，但幻灯片是英语的。这段演讲最终应该会发布到 YouTube 上。幻灯片和代码示例可从以下 URL 下载：https://github.com/ech2/DevGAMM_2021_Fall/

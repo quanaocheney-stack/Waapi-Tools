@@ -1,0 +1,44 @@
+{
+  "name": "waapi-tools",
+  "version": "1.0.0",
+  "description": "WAAPI 工具箱",
+  "main": "waapi-tools-main.js",
+  "scripts": {
+    "start": "electron waapi-tools-main.js",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Delia",
+  "license": "ISC",
+  "dependencies": {
+    "autobahn": "^22.11.1"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.waapi.tools",
+    "productName": "WAAPI 工具箱",
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "files": [
+      "waapi-tools-main.js",
+      "waapi-tools.html",
+      "waapi-tools-functions.js",
+      "waapi.js",
+      "package.json",
+      "!*.log",
+      "!README*.md",
+      "!node_modules/**/*"
+    ],
+    "electronLanguages": ["zh-CN", "en-US"]
+  }
+}

@@ -1,0 +1,1834 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAAPI 工具箱</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: white;
+            --bg-secondary: #f5f5f5;
+            --bg-tertiary: #f8f9fa;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --text-tertiary: #999;
+            --border-color: #ddd;
+            --input-bg: white;
+            --input-border: #ddd;
+            --status-bg: #f5f5f5;
+            --table-hover: #f5f5f5;
+            --shadow: rgba(0,0,0,0.2);
+            --primary-color: #667eea;
+            --success-color: #4CAF50;
+            --danger-color: #f44336;
+            --warning-color: #ff9800;
+            --body-gradient-start: #667eea;
+            --body-gradient-end: #764ba2;
+            --info-box-bg: #e3f2fd;
+            --info-box-border: #2196F3;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #2d2d2d;
+            --bg-tertiary: #252525;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --text-tertiary: #808080;
+            --border-color: #404040;
+            --input-bg: #2d2d2d;
+            --input-border: #404040;
+            --status-bg: #2d2d2d;
+            --table-hover: #353535;
+            --shadow: rgba(0,0,0,0.5);
+            --body-gradient-start: #1a1a2e;
+            --body-gradient-end: #16213e;
+            --info-box-bg: #1e3a5f;
+            --info-box-border: #4a90e2;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, var(--body-gradient-start) 0%, var(--body-gradient-end) 100%);
+            padding: 20px;
+            height: 100vh;
+            overflow: hidden;
+            transition: background 0.3s ease;
+        }
+
+        .container {
+            background: var(--bg-primary);
+            border-radius: 10px;
+            padding: 30px;
+            height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 40px var(--shadow);
+        }
+
+        h1 {
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .input-group label {
+            font-size: 14px;
+            white-space: nowrap;
+            color: var(--text-secondary);
+            font-weight: bold;
+        }
+
+        input[type="number"], input[type="text"] {
+            padding: 8px 12px;
+            border: 2px solid var(--input-border);
+            border-radius: 5px;
+            font-size: 14px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        input[type="number"]:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-indicator.connected {
+            background: var(--success-color);
+        }
+
+        .status-indicator.disconnected {
+            background: #ccc;
+        }
+
+        .status-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            color: var(--text-secondary);
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            color: var(--primary-color);
+        }
+
+        .tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+
+        .tab-content {
+            flex: 1;
+            overflow: hidden;
+            display: none;
+            flex-direction: column;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        .tool-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .tool-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #45a049;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #da190b;
+        }
+
+        .btn-danger:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        input[type="radio"] {
+            cursor: pointer;
+        }
+
+        .checkbox-group {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        input[type="checkbox"] {
+            cursor: pointer;
+        }
+
+        .btn-locate {
+            background: var(--primary-color);
+            color: white;
+            padding: 6px 8px;
+            font-size: 14px;
+            border-radius: 3px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            transition: all 0.3s;
+        }
+
+        .btn-locate:hover {
+            background: #5568d3;
+            transform: scale(1.1);
+        }
+
+        .btn-locate svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+        }
+
+        .path-display {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+        }
+
+        .path-display span {
+            flex: 1;
+            font-size: 13px;
+            color: var(--text-secondary);
+            word-break: break-all;
+        }
+
+        .results-container {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .results-header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn-clear {
+            background: var(--warning-color);
+            color: white;
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .btn-clear:hover {
+            background: #f57c00;
+        }
+
+        .btn-clear:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .results-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
+        .results-count {
+            background: var(--primary-color);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+
+        .results-table {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: var(--primary-color);
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        th {
+            font-weight: bold;
+            color: white;
+        }
+
+        /* 无效原因列默认宽度 */
+        #deleteEventsThReason {
+            min-width: 200px;
+            width: 25%;
+        }
+
+        /* 无效原因列内容字体小一些，避免换行 */
+        #deleteEventsBody td:nth-child(4) {
+            min-width: 200px;
+            width: 25%;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        tbody tr:hover {
+            background: var(--table-hover);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-tertiary);
+        }
+
+        .info-box {
+            padding: 12px 15px;
+            background: var(--info-box-bg);
+            border-left: 4px solid var(--info-box-border);
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+
+        .settings-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-left: auto;
+        }
+
+        .theme-btn, .lang-btn {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border: 2px solid var(--border-color);
+            border-radius: 5px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .theme-btn:hover, .lang-btn:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--primary-color);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 WAAPI 工具箱</h1>
+        
+        <div class="header-controls">
+            <div class="input-group">
+                <label>端口:</label>
+                <input type="number" id="portInput" value="8080" min="1" max="65535" style="width: 80px;">
+            </div>
+            <div class="status-indicator disconnected" id="statusIndicator"></div>
+            <span class="status-text" id="statusText">未连接</span>
+            <div class="settings-controls">
+                <button class="theme-btn" id="themeToggleBtn" title="切换主题">☀️</button>
+                <button class="lang-btn" id="langToggleBtn" title="切换语言">中</button>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="reset-faders">重置音量推子</button>
+            <button class="tab" data-tab="delete-events">删除无效Event</button>
+            <button class="tab" data-tab="set-streaming">设置流播放</button>
+            <button class="tab" data-tab="remove-wavs">删除未使用WAV</button>
+        </div>
+
+        <!-- 重置音量推子标签 -->
+        <div class="tab-content active" id="reset-faders-tab">
+            <div class="info-box">
+                重置选中对象的音量推子。可以选择仅重置选中对象本身，或重置选中对象及其所有子对象。
+            </div>
+            <div class="tool-panel">
+                <div class="tool-controls">
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="checkbox" name="resetScope" value="selected" checked>
+                            <span id="resetScopeSelected">仅选中对象</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" name="resetScope" value="children" checked>
+                            <span id="resetScopeChildren">选中对象+子对象</span>
+                        </label>
+                    </div>
+                    <button class="btn-primary" id="resetFadersScanBtn">开始检测</button>
+                    <button class="btn-success" id="resetFadersConfirmBtn" style="display: none;">确认重置</button>
+                </div>
+            </div>
+            <div class="results-container">
+                <div class="results-header">
+                    <span class="results-title" id="resetFadersResultsTitle">检测结果</span>
+                    <div class="results-header-actions">
+                        <span class="results-count" id="resetFadersCount">0 个对象</span>
+                        <span class="results-count" id="resetFadersNonZeroCount" style="margin-left: 10px; color: var(--warning-color, #ff9800); display: none;"></span>
+                        <button class="btn-primary" id="resetFadersListViewBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到List View</button>
+                        <button class="btn-primary" id="resetFadersMultiEditorBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到Multi Editor</button>
+                        <button class="btn-clear" id="resetFadersClearBtn">清除结果</button>
+                    </div>
+                </div>
+                <div id="resetFadersNonZeroList" style="display: none; margin-top: 10px; padding: 10px; background: var(--bg-secondary, #f5f5f5); border-radius: 4px; max-height: 200px; overflow-y: auto;">
+                    <div style="font-weight: bold; margin-bottom: 8px; color: var(--warning-color, #ff9800);" id="resetFadersNonZeroListTitle">未归零对象：</div>
+                    <div id="resetFadersNonZeroListContent"></div>
+                </div>
+                <div class="results-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th id="resetFadersThLocate">定位</th>
+                                <th id="resetFadersThIndex">序号</th>
+                                <th id="resetFadersThName">对象名称</th>
+                                <th id="resetFadersThType">类型</th>
+                                <th id="resetFadersThVolume">原音量</th>
+                                <th id="resetFadersThStatus">状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resetFadersBody">
+                            <tr>
+                                <td colspan="6" class="empty-state" id="resetFadersEmptyState">请点击"开始检测"按钮</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 删除无效Event标签 -->
+        <div class="tab-content" id="delete-events-tab">
+            <div class="info-box" id="deleteEventsInfoBox">
+                扫描工程中所有Event，找出所有Action都引用不存在对象的无效Event。
+            </div>
+            <div class="tool-panel">
+                <div class="tool-controls">
+                    <button class="btn-primary" id="deleteEventsScanBtn">扫描无效Event</button>
+                    <button class="btn-danger" id="deleteEventsConfirmBtn" style="display: none;">确认删除</button>
+                </div>
+            </div>
+            <div class="results-container">
+                <div class="results-header">
+                    <span class="results-title" id="deleteEventsResultsTitle">扫描结果</span>
+                    <div class="results-header-actions">
+                        <span class="results-count" id="deleteEventsCount">0 个Event</span>
+                        <button class="btn-primary" id="deleteEventsListViewBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到List View</button>
+                        <button class="btn-primary" id="deleteEventsMultiEditorBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到Multi Editor</button>
+                        <button class="btn-clear" id="deleteEventsClearBtn">清除结果</button>
+                    </div>
+                </div>
+                <div class="results-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th id="deleteEventsThLocate">定位</th>
+                                <th id="deleteEventsThIndex">序号</th>
+                                <th id="deleteEventsThName">Event名称</th>
+                                <th id="deleteEventsThReason">无效原因</th>
+                                <th id="deleteEventsThGuid">路径</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deleteEventsBody">
+                            <tr>
+                                <td colspan="5" class="empty-state" id="deleteEventsEmptyState">请点击"扫描无效Event"按钮</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 设置流播放标签 -->
+        <div class="tab-content" id="set-streaming-tab">
+            <div class="info-box" id="setStreamingInfoBox">
+                检测选中容器下的所有Sound对象，为时长超过阈值的对象设置流播放属性。
+            </div>
+            <div class="tool-panel">
+                <div class="tool-controls">
+                    <div class="input-group">
+                        <label id="setStreamingThresholdLabel">时长阈值（秒）:</label>
+                        <input type="number" id="streamingThreshold" value="10" min="0" step="0.1" style="width: 100px;">
+                    </div>
+                    <button class="btn-primary" id="setStreamingScanBtn">检测选中容器</button>
+                    <button class="btn-success" id="setStreamingConfirmBtn" style="display: none;">确认设置</button>
+                </div>
+            </div>
+            <div class="results-container">
+                <div class="results-header">
+                    <span class="results-title" id="setStreamingResultsTitle">检测结果</span>
+                    <div class="results-header-actions">
+                        <span class="results-count" id="setStreamingCount">0 个对象</span>
+                        <button class="btn-primary" id="setStreamingListViewBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到List View</button>
+                        <button class="btn-primary" id="setStreamingMultiEditorBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到Multi Editor</button>
+                        <button class="btn-clear" id="setStreamingClearBtn">清除结果</button>
+                    </div>
+                </div>
+                <div class="results-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th id="setStreamingThLocate">定位</th>
+                                <th id="setStreamingThIndex">序号</th>
+                                <th id="setStreamingThName">对象名称</th>
+                                <th id="setStreamingThDuration">当前时长（秒）</th>
+                                <th id="setStreamingThShouldSet">满足条件</th>
+                                <th id="setStreamingThStatus">当前流播放状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="setStreamingBody">
+                            <tr>
+                                <td colspan="6" class="empty-state" id="setStreamingEmptyState">请点击"检测选中容器"按钮</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 删除未使用WAV标签 -->
+        <div class="tab-content" id="remove-wavs-tab">
+            <div class="info-box" id="removeWavsInfoBox">
+                扫描Originals文件夹，找出未被任何Sound对象引用的WAV文件。
+            </div>
+            <div class="tool-panel">
+                <div class="tool-controls">
+                    <div class="path-display">
+                        <span id="originalsPath">未选择文件夹</span>
+                        <button class="btn-primary" id="selectOriginalsBtn" style="padding: 6px 12px; font-size: 12px;">选择文件夹</button>
+                    </div>
+                    <button class="btn-primary" id="removeWavsScanBtn">扫描未使用文件</button>
+                    <button class="btn-danger" id="removeWavsConfirmBtn" style="display: none;">确认删除</button>
+                </div>
+            </div>
+            <div class="results-container">
+                <div class="results-header">
+                    <span class="results-title" id="removeWavsResultsTitle">扫描结果</span>
+                    <div class="results-header-actions">
+                        <span class="results-count" id="removeWavsCount">0 个文件</span>
+                        <button class="btn-clear" id="removeWavsClearBtn">清除结果</button>
+                    </div>
+                </div>
+                <div class="results-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th id="removeWavsThIndex">序号</th>
+                                <th id="removeWavsThPath">文件路径</th>
+                                <th id="removeWavsThSize">文件大小</th>
+                                <th id="removeWavsThMtime">最后修改时间</th>
+                            </tr>
+                        </thead>
+                        <tbody id="removeWavsBody">
+                            <tr>
+                                <td colspan="4" class="empty-state" id="removeWavsEmptyState">请点击"扫描未使用文件"按钮</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="i18n.js"></script>
+    <script>
+        const { ipcRenderer } = require('electron');
+        
+        // 主题和语言管理
+        let currentTheme = localStorage.getItem('theme') || 'light';
+        let currentLanguage = localStorage.getItem('language') || 'zh';
+        
+        // 更新所有文本的国际化
+        function updateAllTexts() {
+            if (typeof t !== 'function') return;
+            
+            // 更新标题
+            const titleEl = document.querySelector('h1');
+            if (titleEl) titleEl.textContent = t('title');
+            document.title = t('title');
+            
+            // 更新端口标签
+            const portLabel = document.querySelector('.input-group label');
+            if (portLabel) portLabel.textContent = t('port') + ':';
+            
+            // 更新标签页
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach((tab, index) => {
+                const tabKeys = ['tabs.resetFaders', 'tabs.deleteEvents', 'tabs.setStreaming', 'tabs.removeWavs'];
+                if (tabKeys[index]) {
+                    tab.textContent = t(tabKeys[index]);
+                }
+            });
+            
+            // 更新状态文本
+            updateStatusText();
+            
+            // 更新各个功能模块的文本
+            updateResetFadersTexts();
+            updateDeleteEventsTexts();
+            updateSetStreamingTexts();
+            updateRemoveWavsTexts();
+        }
+        
+        // 更新状态文本
+        function updateStatusText() {
+            if (typeof t !== 'function') return;
+            updateConnectionStatus();
+        }
+        
+        // 更新重置音量推子相关文本
+        function updateResetFadersTexts() {
+            if (typeof t !== 'function') return;
+            const infoBox = document.querySelector('#reset-faders-tab .info-box');
+            if (infoBox) infoBox.textContent = t('resetFaders.info');
+            
+            const scopeSelected = document.getElementById('resetScopeSelected');
+            if (scopeSelected) scopeSelected.textContent = t('resetFaders.scopeSelected');
+            
+            const scopeChildren = document.getElementById('resetScopeChildren');
+            if (scopeChildren) scopeChildren.textContent = t('resetFaders.scopeChildren');
+            
+            const scanBtn = document.getElementById('resetFadersScanBtn');
+            if (scanBtn && !scanBtn.disabled && !scanBtn.textContent.includes('...')) scanBtn.textContent = t('resetFaders.scanBtn');
+            
+            const confirmBtn = document.getElementById('resetFadersConfirmBtn');
+            if (confirmBtn && !confirmBtn.disabled && !confirmBtn.textContent.includes('...')) confirmBtn.textContent = t('resetFaders.confirmBtn');
+            
+            const resultsTitle = document.getElementById('resetFadersResultsTitle');
+            if (resultsTitle) resultsTitle.textContent = t('resetFaders.resultsTitle');
+            
+            const clearBtn = document.getElementById('resetFadersClearBtn');
+            if (clearBtn) clearBtn.textContent = t('resetFaders.clearBtn');
+            
+            const listViewBtn = document.getElementById('resetFadersListViewBtn');
+            if (listViewBtn && !listViewBtn.disabled && !listViewBtn.textContent.includes('...')) {
+                listViewBtn.textContent = t('resetFaders.listViewBtn');
+            }
+            
+            // 更新表格表头
+            const thLocate = document.getElementById('resetFadersThLocate');
+            if (thLocate) thLocate.textContent = t('resetFaders.tableHeaders.locate');
+            const thIndex = document.getElementById('resetFadersThIndex');
+            if (thIndex) thIndex.textContent = t('resetFaders.tableHeaders.index');
+            const thName = document.getElementById('resetFadersThName');
+            if (thName) thName.textContent = t('resetFaders.tableHeaders.name');
+            const thType = document.getElementById('resetFadersThType');
+            if (thType) thType.textContent = t('resetFaders.tableHeaders.type');
+            const thVolume = document.getElementById('resetFadersThVolume');
+            if (thVolume) thVolume.textContent = t('resetFaders.tableHeaders.volume');
+            const thStatus = document.getElementById('resetFadersThStatus');
+            if (thStatus) thStatus.textContent = t('resetFaders.tableHeaders.status');
+            
+            // 更新空状态文本
+            const emptyState = document.getElementById('resetFadersEmptyState');
+            if (emptyState && resetFadersResults && resetFadersResults.length === 0) {
+                emptyState.textContent = t('resetFaders.emptyState');
+            }
+        }
+        
+        // 更新删除无效Event相关文本
+        function updateDeleteEventsTexts() {
+            if (typeof t !== 'function') return;
+            const infoBox = document.getElementById('deleteEventsInfoBox');
+            if (infoBox) infoBox.textContent = t('deleteEvents.info');
+            
+            const scanBtn = document.getElementById('deleteEventsScanBtn');
+            if (scanBtn && !scanBtn.disabled && !scanBtn.textContent.includes('...')) scanBtn.textContent = t('deleteEvents.scanBtn');
+            
+            const confirmBtn = document.getElementById('deleteEventsConfirmBtn');
+            if (confirmBtn && !confirmBtn.disabled && !confirmBtn.textContent.includes('...')) confirmBtn.textContent = t('deleteEvents.confirmBtn');
+            
+            const resultsTitle = document.getElementById('deleteEventsResultsTitle');
+            if (resultsTitle) resultsTitle.textContent = t('deleteEvents.resultsTitle');
+            
+            const clearBtn = document.getElementById('deleteEventsClearBtn');
+            if (clearBtn) clearBtn.textContent = t('deleteEvents.clearBtn');
+            
+            // 更新表格表头
+            const thIndex = document.getElementById('deleteEventsThIndex');
+            if (thIndex) thIndex.textContent = t('deleteEvents.tableHeaders.index');
+            const thName = document.getElementById('deleteEventsThName');
+            if (thName) thName.textContent = t('deleteEvents.tableHeaders.name');
+            const thLocate = document.getElementById('deleteEventsThLocate');
+            if (thLocate) thLocate.textContent = t('deleteEvents.tableHeaders.locate');
+            const thGuid = document.getElementById('deleteEventsThGuid');
+            if (thGuid) thGuid.textContent = t('deleteEvents.tableHeaders.guid');
+            const thReason = document.getElementById('deleteEventsThReason');
+            if (thReason) thReason.textContent = t('deleteEvents.tableHeaders.reason');
+            
+            const listViewBtn = document.getElementById('deleteEventsListViewBtn');
+            if (listViewBtn && !listViewBtn.disabled && !listViewBtn.textContent.includes('...')) {
+                listViewBtn.textContent = t('deleteEvents.listViewBtn');
+            }
+            
+            // 更新空状态文本
+            const emptyState = document.getElementById('deleteEventsEmptyState');
+            if (emptyState && deleteEventsResults && deleteEventsResults.length === 0) {
+                emptyState.textContent = t('deleteEvents.emptyState');
+            }
+        }
+        
+        // 更新设置流播放相关文本
+        function updateSetStreamingTexts() {
+            if (typeof t !== 'function') return;
+            const infoBox = document.getElementById('setStreamingInfoBox');
+            if (infoBox) infoBox.textContent = t('setStreaming.info');
+            
+            const thresholdLabel = document.getElementById('setStreamingThresholdLabel');
+            if (thresholdLabel) thresholdLabel.textContent = t('setStreaming.thresholdLabel');
+            
+            const scanBtn = document.getElementById('setStreamingScanBtn');
+            if (scanBtn && !scanBtn.disabled && !scanBtn.textContent.includes('...')) scanBtn.textContent = t('setStreaming.scanBtn');
+            
+            const confirmBtn = document.getElementById('setStreamingConfirmBtn');
+            if (confirmBtn && !confirmBtn.disabled && !confirmBtn.textContent.includes('...')) confirmBtn.textContent = t('setStreaming.confirmBtn');
+            
+            const resultsTitle = document.getElementById('setStreamingResultsTitle');
+            if (resultsTitle) resultsTitle.textContent = t('setStreaming.resultsTitle');
+            
+            const clearBtn = document.getElementById('setStreamingClearBtn');
+            if (clearBtn) clearBtn.textContent = t('setStreaming.clearBtn');
+            
+            // 更新表格表头
+            const thIndex = document.getElementById('setStreamingThIndex');
+            if (thIndex) thIndex.textContent = t('setStreaming.tableHeaders.index');
+            const thName = document.getElementById('setStreamingThName');
+            if (thName) thName.textContent = t('setStreaming.tableHeaders.name');
+            const thDuration = document.getElementById('setStreamingThDuration');
+            if (thDuration) thDuration.textContent = t('setStreaming.tableHeaders.duration');
+            const thShouldSet = document.getElementById('setStreamingThShouldSet');
+            if (thShouldSet) thShouldSet.textContent = t('setStreaming.tableHeaders.shouldSet');
+            const thStatus = document.getElementById('setStreamingThStatus');
+            if (thStatus) thStatus.textContent = t('setStreaming.tableHeaders.currentStatus');
+            const thLocate = document.getElementById('setStreamingThLocate');
+            if (thLocate) thLocate.textContent = t('setStreaming.tableHeaders.locate');
+            
+            const listViewBtn = document.getElementById('setStreamingListViewBtn');
+            if (listViewBtn && !listViewBtn.disabled && !listViewBtn.textContent.includes('...')) {
+                listViewBtn.textContent = t('setStreaming.listViewBtn');
+            }
+            
+            const multiEditorBtn = document.getElementById('setStreamingMultiEditorBtn');
+            if (multiEditorBtn && !multiEditorBtn.disabled && !multiEditorBtn.textContent.includes('...')) {
+                multiEditorBtn.textContent = t('setStreaming.multiEditorBtn');
+            }
+            
+            // 更新空状态文本
+            const emptyState = document.getElementById('setStreamingEmptyState');
+            if (emptyState && setStreamingResults && setStreamingResults.length === 0) {
+                emptyState.textContent = t('setStreaming.emptyState');
+            }
+        }
+        
+        // 更新删除未使用WAV相关文本
+        function updateRemoveWavsTexts() {
+            if (typeof t !== 'function') return;
+            const infoBox = document.getElementById('removeWavsInfoBox');
+            if (infoBox) infoBox.textContent = t('removeWavs.info');
+            
+            const selectBtn = document.getElementById('selectOriginalsBtn');
+            if (selectBtn) selectBtn.textContent = t('removeWavs.selectBtn');
+            
+            const scanBtn = document.getElementById('removeWavsScanBtn');
+            if (scanBtn && !scanBtn.disabled && !scanBtn.textContent.includes('...')) scanBtn.textContent = t('removeWavs.scanBtn');
+            
+            const confirmBtn = document.getElementById('removeWavsConfirmBtn');
+            if (confirmBtn && !confirmBtn.disabled && !confirmBtn.textContent.includes('...')) confirmBtn.textContent = t('removeWavs.confirmBtn');
+            
+            const resultsTitle = document.getElementById('removeWavsResultsTitle');
+            if (resultsTitle) resultsTitle.textContent = t('removeWavs.resultsTitle');
+            
+            const clearBtn = document.getElementById('removeWavsClearBtn');
+            if (clearBtn) clearBtn.textContent = t('removeWavs.clearBtn');
+            
+            const pathDisplay = document.getElementById('originalsPath');
+            if (pathDisplay && !originalsPath) {
+                pathDisplay.textContent = t('removeWavs.pathPlaceholder');
+            }
+            
+            // 更新表格表头
+            const thIndex = document.getElementById('removeWavsThIndex');
+            if (thIndex) thIndex.textContent = t('removeWavs.tableHeaders.index');
+            const thPath = document.getElementById('removeWavsThPath');
+            if (thPath) thPath.textContent = t('removeWavs.tableHeaders.path');
+            const thSize = document.getElementById('removeWavsThSize');
+            if (thSize) thSize.textContent = t('removeWavs.tableHeaders.size');
+            const thMtime = document.getElementById('removeWavsThMtime');
+            if (thMtime) thMtime.textContent = t('removeWavs.tableHeaders.mtime');
+            
+            // 更新空状态文本
+            const emptyState = document.getElementById('removeWavsEmptyState');
+            if (emptyState && removeWavsResults && removeWavsResults.length === 0) {
+                emptyState.textContent = t('removeWavs.emptyState');
+            }
+        }
+        
+        // 初始化主题
+        function initTheme() {
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            const themeBtn = document.getElementById('themeToggleBtn');
+            if (themeBtn) {
+                themeBtn.textContent = currentTheme === 'light' ? '☀️' : '🌙';
+            }
+        }
+        
+        // 初始化语言
+        function initLanguage() {
+            if (typeof setLanguage === 'function') {
+                setLanguage(currentLanguage);
+            }
+            const langBtn = document.getElementById('langToggleBtn');
+            if (langBtn) {
+                langBtn.textContent = currentLanguage === 'zh' ? '中' : 'E';
+            }
+            updateAllTexts();
+        }
+        
+        // 初始化按钮事件监听器
+        function initButtons() {
+            const themeBtn = document.getElementById('themeToggleBtn');
+            const langBtn = document.getElementById('langToggleBtn');
+            
+            if (themeBtn) {
+                themeBtn.addEventListener('click', () => {
+                    currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+                    localStorage.setItem('theme', currentTheme);
+                    initTheme();
+                });
+            }
+            
+            if (langBtn) {
+                langBtn.addEventListener('click', () => {
+                    currentLanguage = currentLanguage === 'zh' ? 'en' : 'zh';
+                    localStorage.setItem('language', currentLanguage);
+                    initLanguage();
+                });
+            }
+        }
+        
+        // 等待DOM加载完成后再初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                initTheme();
+                initLanguage();
+                initButtons();
+            });
+        } else {
+            initTheme();
+            initLanguage();
+            initButtons();
+        }
+
+        // 标签页切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.getAttribute('data-tab');
+                
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+                
+                tab.classList.add('active');
+                document.getElementById(targetTab + '-tab').classList.add('active');
+            });
+        });
+
+        // 连接状态
+        let isConnected = false;
+        let currentProjectName = '';
+        let currentWwiseVersion = '';
+        const portInput = document.getElementById('portInput');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+
+        // 测试连接
+        async function testConnection() {
+            const port = parseInt(portInput.value) || 8080;
+            try {
+                const result = await ipcRenderer.invoke('waapi-test-connection', port);
+                if (result.success) {
+                    isConnected = true;
+                    currentProjectName = result.projectName || 'Wwise';
+                    currentWwiseVersion = result.wwiseVersion || '';
+                    statusIndicator.className = 'status-indicator connected';
+                    updateConnectionStatus();
+                } else {
+                    isConnected = false;
+                    currentProjectName = '';
+                    currentWwiseVersion = '';
+                    statusIndicator.className = 'status-indicator disconnected';
+                    statusText.textContent = typeof t === 'function' ? t('disconnected') : '未连接';
+                }
+            } catch (error) {
+                isConnected = false;
+                currentProjectName = '';
+                currentWwiseVersion = '';
+                statusIndicator.className = 'status-indicator disconnected';
+                statusText.textContent = typeof t === 'function' ? t('disconnected') : '未连接';
+            }
+        }
+
+        // 更新连接状态显示
+        function updateConnectionStatus() {
+            if (isConnected) {
+                const connectedText = typeof t === 'function' ? t('connected') : '已连接';
+                if (currentWwiseVersion) {
+                    statusText.textContent = `${connectedText} - ${currentProjectName} (${currentWwiseVersion})`;
+                } else {
+                    statusText.textContent = `${connectedText} - ${currentProjectName}`;
+                }
+            } else {
+                statusText.textContent = typeof t === 'function' ? t('disconnected') : '未连接';
+            }
+        }
+
+        // 页面加载时测试连接
+        testConnection();
+        portInput.addEventListener('change', testConnection);
+
+        // 重置音量推子功能
+        let resetFadersResults = [];
+        const resetFadersScanBtn = document.getElementById('resetFadersScanBtn');
+        const resetFadersConfirmBtn = document.getElementById('resetFadersConfirmBtn');
+        const resetFadersClearBtn = document.getElementById('resetFadersClearBtn');
+        const resetFadersBody = document.getElementById('resetFadersBody');
+        const resetFadersCount = document.getElementById('resetFadersCount');
+
+        resetFadersScanBtn.addEventListener('click', async () => {
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('resetFaders.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+            const port = parseInt(portInput.value) || 8080;
+            const checkedScopes = Array.from(document.querySelectorAll('input[name="resetScope"]:checked')).map(cb => cb.value);
+            if (checkedScopes.length === 0) {
+                alert('请至少选择一个选项');
+                return;
+            }
+            const scope = checkedScopes;
+            
+            resetFadersScanBtn.disabled = true;
+            resetFadersScanBtn.textContent = typeof t === 'function' ? t('resetFaders.scanBtnScanning') : '检测中...';
+            
+            try {
+                const result = await ipcRenderer.invoke('waapi-reset-faders-scan', port, scope);
+                resetFadersResults = result.results || [];
+                updateResetFadersTable();
+                // 检查是否有未归零对象
+                const hasNonZero = resetFadersResults.some(item => {
+                    const status = item.status || '';
+                    if (status === '已归零') return false;
+                    return item.originalVolume !== null && item.originalVolume !== undefined && item.originalVolume !== 0;
+                });
+                if (hasNonZero) {
+                    resetFadersConfirmBtn.style.display = 'inline-block';
+                } else {
+                    resetFadersConfirmBtn.style.display = 'none';
+                }
+            } catch (error) {
+                alert((typeof t === 'function' ? t('resetFaders.alertScanFailed') : '检测失败') + ': ' + error.message);
+            } finally {
+                resetFadersScanBtn.disabled = false;
+                resetFadersScanBtn.textContent = typeof t === 'function' ? t('resetFaders.scanBtn') : '开始检测';
+            }
+        });
+
+        resetFadersConfirmBtn.addEventListener('click', async () => {
+            if (resetFadersResults.length === 0) return;
+            
+            // 获取未归零对象
+            const nonZeroObjects = resetFadersResults.filter(item => {
+                const status = item.status || '';
+                if (status === '已归零') {
+                    return false;
+                }
+                return item.originalVolume !== null && item.originalVolume !== undefined && item.originalVolume !== 0;
+            });
+            
+            if (nonZeroObjects.length === 0) {
+                alert(typeof t === 'function' ? t('resetFaders.allZeroed') : '所有对象已归零，无需重置');
+                return;
+            }
+            
+            const confirmed = await ipcRenderer.invoke('waapi-show-confirm', {
+                type: 'warning',
+                title: typeof t === 'function' ? t('resetFaders.confirmTitle') : '确认重置',
+                message: typeof t === 'function' ? t('resetFaders.confirmMessage', { count: nonZeroObjects.length }) : `确定要重置 ${nonZeroObjects.length} 个对象的音量推子吗？`,
+                buttons: typeof t === 'function' ? [t('common.cancel'), t('resetFaders.confirmBtn')] : ['取消', '确认重置'],
+                defaultId: 1
+            });
+            
+            if (confirmed.response === 1) {
+                const port = parseInt(portInput.value) || 8080;
+                const checkedScopes = Array.from(document.querySelectorAll('input[name="resetScope"]:checked')).map(cb => cb.value);
+                const scope = checkedScopes;
+                
+                resetFadersConfirmBtn.disabled = true;
+                resetFadersConfirmBtn.textContent = typeof t === 'function' ? t('resetFaders.confirmBtnResetting') : '重置中...';
+                
+                try {
+                    // 只传递未归零对象进行重置
+                    const result = await ipcRenderer.invoke('waapi-reset-faders-execute', port, scope, nonZeroObjects);
+                    if (result.success) {
+                        // 更新成功重置的对象状态为"已重置"
+                        if (result.resetIds && result.resetIds.length > 0) {
+                            const resetIdsSet = new Set(result.resetIds);
+                            resetFadersResults.forEach(item => {
+                                if (resetIdsSet.has(item.id)) {
+                                    item.status = '已重置';
+                                }
+                            });
+                        }
+                        updateResetFadersTable();
+                        alert(typeof t === 'function' ? t('resetFaders.successMessage', { count: result.count }) : `成功重置 ${result.count} 个对象的音量推子`);
+                        // 检查是否还有待重置的对象
+                        const hasPending = resetFadersResults.some(item => {
+                            const status = item.status || '';
+                            if (status === '已归零') return false;
+                            return item.originalVolume !== null && item.originalVolume !== undefined && item.originalVolume !== 0;
+                        });
+                        if (!hasPending) {
+                            resetFadersConfirmBtn.style.display = 'none';
+                        }
+                    } else {
+                        alert((typeof t === 'function' ? t('resetFaders.alertResetFailed') : '重置失败') + ': ' + result.message);
+                    }
+                } catch (error) {
+                    alert((typeof t === 'function' ? t('resetFaders.alertResetFailed') : '重置失败') + ': ' + error.message);
+                } finally {
+                    resetFadersConfirmBtn.disabled = false;
+                    resetFadersConfirmBtn.textContent = typeof t === 'function' ? t('resetFaders.confirmBtn') : '确认重置';
+                }
+            }
+        });
+
+        resetFadersClearBtn.addEventListener('click', () => {
+            resetFadersResults = [];
+            updateResetFadersTable();
+            resetFadersConfirmBtn.style.display = 'none';
+        });
+
+        const resetFadersListViewBtn = document.getElementById('resetFadersListViewBtn');
+        resetFadersListViewBtn.addEventListener('click', async () => {
+            if (resetFadersResults.length === 0) return;
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('resetFaders.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+            
+            // 获取未归零对象
+            const nonZeroObjects = resetFadersResults.filter(item => {
+                const status = item.status || '';
+                if (status === '已归零') return false;
+                return item.originalVolume !== null && item.originalVolume !== undefined && item.originalVolume !== 0;
+            });
+            
+            if (nonZeroObjects.length === 0) {
+                alert(typeof t === 'function' ? t('resetFaders.allZeroed') : '所有对象已归零，无需重置');
+                return;
+            }
+            
+            const port = parseInt(portInput.value) || 8080;
+            resetFadersListViewBtn.disabled = true;
+            resetFadersListViewBtn.textContent = typeof t === 'function' ? t('resetFaders.listViewBtnLoading') : '显示中...';
+            
+            try {
+                // 提取未归零对象的ID
+                const objectIds = nonZeroObjects
+                    .map(r => r.id || r.guid)
+                    .filter(id => id && typeof id === 'string');
+                
+                if (objectIds.length === 0) {
+                    alert(typeof t === 'function' ? t('resetFaders.listViewNoObjects') : '没有有效的对象ID');
+                    return;
+                }
+                
+                // 显示到List View
+                const result = await ipcRenderer.invoke('waapi-show-list-view', port, objectIds);
+                
+                if (result.success) {
+                    // 成功提示（可选）
+                    // alert(typeof t === 'function' ? t('resetFaders.listViewSuccess') : '已显示到List View');
+                } else {
+                    alert((typeof t === 'function' ? t('resetFaders.listViewFailed') : '显示到List View失败') + ': ' + result.message);
+                }
+            } catch (error) {
+                alert((typeof t === 'function' ? t('resetFaders.listViewFailed') : '显示到List View失败') + ': ' + error.message);
+            } finally {
+                resetFadersListViewBtn.disabled = false;
+                resetFadersListViewBtn.textContent = typeof t === 'function' ? t('resetFaders.listViewBtn') : '显示到List View';
+            }
+        });
+
+        const resetFadersMultiEditorBtn = document.getElementById('resetFadersMultiEditorBtn');
+        resetFadersMultiEditorBtn.addEventListener('click', async () => {
+            if (resetFadersResults.length === 0) return;
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('resetFaders.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+            
+            // 获取未归零对象
+            const nonZeroObjects = resetFadersResults.filter(item => {
+                const status = item.status || '';
+                if (status === '已归零') return false;
+                return item.originalVolume !== null && item.originalVolume !== undefined && item.originalVolume !== 0;
+            });
+            
+            if (nonZeroObjects.length === 0) {
+                alert(typeof t === 'function' ? t('resetFaders.allZeroed') : '所有对象已归零，无需重置');
+                return;
+            }
+            
+            const port = parseInt(portInput.value) || 8080;
+            resetFadersMultiEditorBtn.disabled = true;
+            resetFadersMultiEditorBtn.textContent = typeof t === 'function' ? t('resetFaders.multiEditorBtnLoading') : '显示中...';
+            
+            try {
+                // 提取未归零对象的ID
+                const objectIds = nonZeroObjects
+                    .map(r => r.id || r.guid)
+                    .filter(id => id && typeof id === 'string');
+                
+                if (objectIds.length === 0) {
+                    alert(typeof t === 'function' ? t('resetFaders.multiEditorNoObjects') : '没有有效的对象ID');
+                    return;
+                }
+                
+                // 显示到Multi Editor
+                const result = await ipcRenderer.invoke('waapi-show-multi-editor', port, objectIds);
+                
+                if (result.success) {
+                    // 成功提示（可选）
+                } else {
+                    alert((typeof t === 'function' ? t('resetFaders.multiEditorFailed') : '显示到Multi Editor失败') + ': ' + result.message);
+                }
+            } catch (error) {
+                alert((typeof t === 'function' ? t('resetFaders.multiEditorFailed') : '显示到Multi Editor失败') + ': ' + error.message);
+            } finally {
+                resetFadersMultiEditorBtn.disabled = false;
+                resetFadersMultiEditorBtn.textContent = typeof t === 'function' ? t('resetFaders.multiEditorBtn') : '显示到Multi Editor';
+            }
+        });
+
+        // 在表格更新后重新初始化列宽调整
+        function updateResetFadersTable() {
+            // 统计未归零对象（状态为"待重置"或音量不为0的对象）
+            const nonZeroObjects = resetFadersResults.filter(item => {
+                const status = item.status || '';
+                // 如果状态是"已归零"，则不是未归零对象
+                if (status === '已归零') {
+                    return false;
+                }
+                // 其他情况（待重置、已重置等）或者音量不为0的都是未归零对象
+                return item.originalVolume !== null && item.originalVolume !== undefined && item.originalVolume !== 0;
+            });
+            
+            // 只显示未归零对象的数量
+            const countText = typeof t === 'function' ? t('resetFaders.resultsCount') : '个对象';
+            resetFadersCount.textContent = `${nonZeroObjects.length} ${countText}`;
+            resetFadersClearBtn.disabled = resetFadersResults.length === 0;
+            
+            // 隐藏未归零对象列表区域（因为表格已经显示了）
+            const nonZeroCount = document.getElementById('resetFadersNonZeroCount');
+            const nonZeroList = document.getElementById('resetFadersNonZeroList');
+            if (nonZeroCount) nonZeroCount.style.display = 'none';
+            if (nonZeroList) nonZeroList.style.display = 'none';
+            
+            // 基于未归零对象数量显示按钮
+            if (nonZeroObjects.length > 0) {
+                resetFadersListViewBtn.style.display = 'inline-block';
+                resetFadersMultiEditorBtn.style.display = 'inline-block';
+            } else {
+                resetFadersListViewBtn.style.display = 'none';
+                resetFadersMultiEditorBtn.style.display = 'none';
+            }
+            
+            // 如果没有检测结果，显示空状态
+            if (resetFadersResults.length === 0) {
+                const emptyText = typeof t === 'function' ? t('resetFaders.emptyState') : '请点击"开始检测"按钮';
+                resetFadersBody.innerHTML = `<tr><td colspan="6" class="empty-state" id="resetFadersEmptyState">${emptyText}</td></tr>`;
+                return;
+            }
+            
+            // 如果没有未归零对象，显示提示信息
+            if (nonZeroObjects.length === 0) {
+                const emptyText = typeof t === 'function' ? t('resetFaders.allZeroed') : '所有对象已归零，无需重置';
+                resetFadersBody.innerHTML = `<tr><td colspan="6" class="empty-state" id="resetFadersEmptyState">${emptyText}</td></tr>`;
+                return;
+            }
+            
+            // 只显示未归零对象
+            resetFadersBody.innerHTML = nonZeroObjects.map((item, index) => `
+                <tr>
+                    <td><button class="btn-locate" onclick="locateObject('${item.id}')" title="定位"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></button></td>
+                    <td>${index + 1}</td>
+                    <td>${item.name || 'N/A'}</td>
+                    <td>${item.type || 'N/A'}</td>
+                    <td>${item.originalVolume !== null && item.originalVolume !== undefined ? item.originalVolume.toFixed(2) : 'N/A'}</td>
+                    <td>${item.status === '已归零' ? (typeof t === 'function' ? t('resetFaders.statusZeroed') : '已归零') : (item.status === '已重置' ? (typeof t === 'function' ? t('resetFaders.statusReset') : '已重置') + ' <span style="color: #4caf50;">✓</span>' : (item.status === '待重置' ? (typeof t === 'function' ? t('resetFaders.statusPending') : '待重置') : (item.status || (typeof t === 'function' ? t('resetFaders.statusPending') : '待重置'))))}</td>
+                </tr>
+            `).join('');
+        }
+
+        // 定位对象到Wwise窗口
+        async function locateObject(objectId) {
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('resetFaders.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+            const port = parseInt(portInput.value) || 8080;
+            try {
+                await ipcRenderer.invoke('waapi-locate-object', port, objectId);
+            } catch (error) {
+                alert('定位失败: ' + error.message);
+            }
+        }
+
+        // 删除无效Event功能
+        let deleteEventsResults = [];
+        const deleteEventsScanBtn = document.getElementById('deleteEventsScanBtn');
+        const deleteEventsConfirmBtn = document.getElementById('deleteEventsConfirmBtn');
+        const deleteEventsClearBtn = document.getElementById('deleteEventsClearBtn');
+        const deleteEventsBody = document.getElementById('deleteEventsBody');
+        const deleteEventsCount = document.getElementById('deleteEventsCount');
+
+        deleteEventsScanBtn.addEventListener('click', async () => {
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('deleteEvents.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+            const port = parseInt(portInput.value) || 8080;
+            
+            deleteEventsScanBtn.disabled = true;
+            deleteEventsScanBtn.textContent = typeof t === 'function' ? t('deleteEvents.scanBtnScanning') : '扫描中...';
+            
+            try {
+                const result = await ipcRenderer.invoke('waapi-delete-events-scan', port);
+                deleteEventsResults = result.results || [];
+                updateDeleteEventsTable();
+                if (deleteEventsResults.length > 0) {
+                    deleteEventsConfirmBtn.style.display = 'inline-block';
+                }
+            } catch (error) {
+                alert((typeof t === 'function' ? t('deleteEvents.alertScanFailed') : '扫描失败') + ': ' + error.message);
+            } finally {
+                deleteEventsScanBtn.disabled = false;
+                deleteEventsScanBtn.textContent = typeof t === 'function' ? t('deleteEvents.scanBtn') : '扫描无效Event';
+            }
+        });
+
+        deleteEventsConfirmBtn.addEventListener('click', async () => {
+            if (deleteEventsResults.length === 0) return;
+            
+            const confirmed = await ipcRenderer.invoke('waapi-show-confirm', {
+                type: 'warning',
+                title: typeof t === 'function' ? t('deleteEvents.confirmTitle') : '确认删除',
+                message: typeof t === 'function' ? t('deleteEvents.confirmMessage', { count: deleteEventsResults.length }) : `确定要删除 ${deleteEventsResults.length} 个无效Event吗？此操作不可撤销！`,
+                buttons: typeof t === 'function' ? [t('common.cancel'), t('deleteEvents.confirmBtn')] : ['取消', '确认删除'],
+                defaultId: 1
+            });
+            
+            if (confirmed.response === 1) {
+                const port = parseInt(portInput.value) || 8080;
+                
+                deleteEventsConfirmBtn.disabled = true;
+                deleteEventsConfirmBtn.textContent = typeof t === 'function' ? t('deleteEvents.confirmBtnDeleting') : '删除中...';
+                
+                try {
+                    const result = await ipcRenderer.invoke('waapi-delete-events-execute', port, deleteEventsResults);
+                    if (result.success) {
+                        alert(typeof t === 'function' ? t('deleteEvents.successMessage', { count: result.count }) : `成功删除 ${result.count} 个无效Event`);
+                        deleteEventsResults = [];
+                        updateDeleteEventsTable();
+                        deleteEventsConfirmBtn.style.display = 'none';
+                    } else {
+                        alert((typeof t === 'function' ? t('deleteEvents.alertDeleteFailed') : '删除失败') + ': ' + result.message);
+                    }
+                } catch (error) {
+                    alert((typeof t === 'function' ? t('deleteEvents.alertDeleteFailed') : '删除失败') + ': ' + error.message);
+                } finally {
+                    deleteEventsConfirmBtn.disabled = false;
+                    deleteEventsConfirmBtn.textContent = typeof t === 'function' ? t('deleteEvents.confirmBtn') : '确认删除';
+                }
+            }
+        });
+
+        deleteEventsClearBtn.addEventListener('click', () => {
+            deleteEventsResults = [];
+            updateDeleteEventsTable();
+            deleteEventsConfirmBtn.style.display = 'none';
+        });
+
+        const deleteEventsListViewBtn = document.getElementById('deleteEventsListViewBtn');
+        deleteEventsListViewBtn.addEventListener('click', async () => {
+            if (deleteEventsResults.length === 0) return;
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('deleteEvents.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+            
+            const port = parseInt(portInput.value) || 8080;
+            deleteEventsListViewBtn.disabled = true;
+            deleteEventsListViewBtn.textContent = typeof t === 'function' ? t('deleteEvents.listViewBtnLoading') : '显示中...';
+            
+            try {
+                // 提取所有对象ID
+                const objectIds = deleteEventsResults
+                    .map(r => r.guid || r.id)
+                    .filter(id => id && typeof id === 'string');
+                
+                if (objectIds.length === 0) {
+                    alert(typeof t === 'function' ? t('deleteEvents.listViewNoObjects') : '没有有效的对象ID');
+                    return;
+                }
+                
+                // 显示到List View
+                const result = await ipcRenderer.invoke('waapi-show-list-view', port, objectIds);
+                
+                if (result.success) {
+                    // 成功提示（可选）
+                } else {
+                    alert((typeof t === 'function' ? t('deleteEvents.listViewFailed') : '显示到List View失败') + ': ' + result.message);
+                }
+            } catch (error) {
+                alert((typeof t === 'function' ? t('deleteEvents.listViewFailed') : '显示到List View失败') + ': ' + error.message);
+            } finally {
+                deleteEventsListViewBtn.disabled = false;
+                deleteEventsListViewBtn.textContent = typeof t === 'function' ? t('deleteEvents.listViewBtn') : '显示到List View';
+            }
+        });
+
+        const deleteEventsMultiEditorBtn = document.getElementById('deleteEventsMultiEditorBtn');
+        deleteEventsMultiEditorBtn.addEventListener('click', async () => {
+            if (deleteEventsResults.length === 0) return;
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('deleteEvents.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+            
+            const port = parseInt(portInput.value) || 8080;
+            deleteEventsMultiEditorBtn.disabled = true;
+            deleteEventsMultiEditorBtn.textContent = typeof t === 'function' ? t('deleteEvents.multiEditorBtnLoading') : '显示中...';
+            
+            try {
+                // 提取所有对象ID
+                const objectIds = deleteEventsResults
+                    .map(r => r.guid || r.id)
+                    .filter(id => id && typeof id === 'string');
+                
+                if (objectIds.length === 0) {
+                    alert(typeof t === 'function' ? t('deleteEvents.multiEditorNoObjects') : '没有有效的对象ID');
+                    return;
+                }
+                
+                // 显示到Multi Editor
+                const result = await ipcRenderer.invoke('waapi-show-multi-editor', port, objectIds);
+                
+                if (result.success) {
+                    // 成功提示（可选）
+                } else {
+                    alert((typeof t === 'function' ? t('deleteEvents.multiEditorFailed') : '显示到Multi Editor失败') + ': ' + result.message);
+                }
+            } catch (error) {
+                alert((typeof t === 'function' ? t('deleteEvents.multiEditorFailed') : '显示到Multi Editor失败') + ': ' + error.message);
+            } finally {
+                deleteEventsMultiEditorBtn.disabled = false;
+                deleteEventsMultiEditorBtn.textContent = typeof t === 'function' ? t('deleteEvents.multiEditorBtn') : '显示到Multi Editor';
+            }
+        });
+
+        function updateDeleteEventsTable() {
+            const countText = typeof t === 'function' ? t('deleteEvents.resultsCount') : '个Event';
+            deleteEventsCount.textContent = `${deleteEventsResults.length} ${countText}`;
+            deleteEventsClearBtn.disabled = deleteEventsResults.length === 0;
+            if (deleteEventsResults.length > 0) {
+                deleteEventsListViewBtn.style.display = 'inline-block';
+                deleteEventsMultiEditorBtn.style.display = 'inline-block';
+            } else {
+                deleteEventsListViewBtn.style.display = 'none';
+                deleteEventsMultiEditorBtn.style.display = 'none';
+            }
+            if (deleteEventsResults.length === 0) {
+                const emptyText = typeof t === 'function' ? t('deleteEvents.emptyState') : '请点击"扫描无效Event"按钮';
+                deleteEventsBody.innerHTML = `<tr><td colspan="5" class="empty-state">${emptyText}</td></tr>`;
+                return;
+            }
+            deleteEventsBody.innerHTML = deleteEventsResults.map((item, index) => `
+                <tr>
+                    <td><button class="btn-locate" onclick="locateObject('${item.guid}')" title="定位"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></button></td>
+                    <td>${index + 1}</td>
+                    <td>${item.name || 'N/A'}</td>
+                    <td>${item.reason || (typeof t === 'function' ? t('deleteEvents.defaultReason') : '所有Action都引用不存在的对象')}</td>
+                    <td style="font-family: monospace; font-size: 12px;">${item.path || item.guid || 'N/A'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // 设置流播放功能
+        let setStreamingResults = [];
+        const setStreamingScanBtn = document.getElementById('setStreamingScanBtn');
+        const setStreamingConfirmBtn = document.getElementById('setStreamingConfirmBtn');
+        const setStreamingClearBtn = document.getElementById('setStreamingClearBtn');
+        const setStreamingListViewBtn = document.getElementById('setStreamingListViewBtn');
+        const setStreamingBody = document.getElementById('setStreamingBody');
+        const setStreamingCount = document.getElementById('setStreamingCount');
+        const streamingThreshold = document.getElementById('streamingThreshold');
+
+        setStreamingScanBtn.addEventListener('click', async () => {
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('setStreaming.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+            const port = parseInt(portInput.value) || 8080;
+            const threshold = parseFloat(streamingThreshold.value) || 10;
+            
+            setStreamingScanBtn.disabled = true;
+            setStreamingScanBtn.textContent = typeof t === 'function' ? t('setStreaming.scanBtnScanning') : '检测中...';
+            
+            try {
+                const result = await ipcRenderer.invoke('waapi-set-streaming-scan', port, threshold);
+                setStreamingResults = result.results || [];
+                updateSetStreamingTable();
+                if (setStreamingResults.length > 0) {
+                    setStreamingConfirmBtn.style.display = 'inline-block';
+                }
+            } catch (error) {
+                alert((typeof t === 'function' ? t('setStreaming.alertScanFailed') : '检测失败') + ': ' + error.message);
+            } finally {
+                setStreamingScanBtn.disabled = false;
+                setStreamingScanBtn.textContent = typeof t === 'function' ? t('setStreaming.scanBtn') : '检测选中容器';
+            }
+        });
+
+        setStreamingConfirmBtn.addEventListener('click', async () => {
+            if (setStreamingResults.length === 0) return;
+            
+            const confirmed = await ipcRenderer.invoke('waapi-show-confirm', {
+                type: 'info',
+                title: typeof t === 'function' ? t('setStreaming.confirmTitle') : '确认设置',
+                message: typeof t === 'function' ? t('setStreaming.confirmMessage', { count: setStreamingResults.length }) : `确定要为 ${setStreamingResults.length} 个对象设置流播放吗？`,
+                buttons: typeof t === 'function' ? [t('common.cancel'), t('setStreaming.confirmBtn')] : ['取消', '确认设置'],
+                defaultId: 1
+            });
+            
+            if (confirmed.response === 1) {
+                const port = parseInt(portInput.value) || 8080;
+                const threshold = parseFloat(streamingThreshold.value) || 10;
+                
+                setStreamingConfirmBtn.disabled = true;
+                setStreamingConfirmBtn.textContent = typeof t === 'function' ? t('setStreaming.confirmBtnSetting') : '设置中...';
+                
+                try {
+                    const result = await ipcRenderer.invoke('waapi-set-streaming-execute', port, threshold, setStreamingResults);
+                    if (result.success) {
+                        alert(typeof t === 'function' ? t('setStreaming.successMessage', { count: result.count }) : `成功为 ${result.count} 个对象设置流播放`);
+                        setStreamingResults = [];
+                        updateSetStreamingTable();
+                        setStreamingConfirmBtn.style.display = 'none';
+                    } else {
+                        alert((typeof t === 'function' ? t('setStreaming.alertSetFailed') : '设置失败') + ': ' + result.message);
+                    }
+                } catch (error) {
+                    alert((typeof t === 'function' ? t('setStreaming.alertSetFailed') : '设置失败') + ': ' + error.message);
+                } finally {
+                    setStreamingConfirmBtn.disabled = false;
+                    setStreamingConfirmBtn.textContent = typeof t === 'function' ? t('setStreaming.confirmBtn') : '确认设置';
+                }
+            }
+        });
+
+        setStreamingClearBtn.addEventListener('click', () => {
+            setStreamingResults = [];
+            updateSetStreamingTable();
+            setStreamingConfirmBtn.style.display = 'none';
+        });
+
+        setStreamingListViewBtn.addEventListener('click', async () => {
+            if (setStreamingResults.length === 0) return;
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('setStreaming.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+            
+            const port = parseInt(portInput.value) || 8080;
+            setStreamingListViewBtn.disabled = true;
+            setStreamingListViewBtn.textContent = typeof t === 'function' ? t('setStreaming.listViewBtnLoading') : '显示中...';
+            
+            try {
+                // 提取所有对象ID
+                const objectIds = setStreamingResults
+                    .map(r => r.id || r.guid)
+                    .filter(id => id && typeof id === 'string');
+                
+                if (objectIds.length === 0) {
+                    alert(typeof t === 'function' ? t('setStreaming.listViewNoObjects') : '没有有效的对象ID');
+                    return;
+                }
+                
+                // 显示到List View
+                const result = await ipcRenderer.invoke('waapi-show-list-view', port, objectIds);
+                
+                if (result.success) {
+                    // 成功提示（可选）
+                } else {
+                    alert((typeof t === 'function' ? t('setStreaming.listViewFailed') : '显示到List View失败') + ': ' + result.message);
+                }
+            } catch (error) {
+                alert((typeof t === 'function' ? t('setStreaming.listViewFailed') : '显示到List View失败') + ': ' + error.message);
+            } finally {
+                setStreamingListViewBtn.disabled = false;
+                setStreamingListViewBtn.textContent = typeof t === 'function' ? t('setStreaming.listViewBtn') : '显示到List View';
+            }
+        });
+
+        const setStreamingMultiEditorBtn = document.getElementById('setStreamingMultiEditorBtn');
+        setStreamingMultiEditorBtn.addEventListener('click', async () => {
+            if (setStreamingResults.length === 0) return;
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('setStreaming.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+            
+            const port = parseInt(portInput.value) || 8080;
+            setStreamingMultiEditorBtn.disabled = true;
+            setStreamingMultiEditorBtn.textContent = typeof t === 'function' ? t('setStreaming.multiEditorBtnLoading') : '显示中...';
+            
+            try {
+                // 提取所有对象ID
+                const objectIds = setStreamingResults
+                    .map(r => r.id || r.guid)
+                    .filter(id => id && typeof id === 'string');
+                
+                if (objectIds.length === 0) {
+                    alert(typeof t === 'function' ? t('setStreaming.multiEditorNoObjects') : '没有有效的对象ID');
+                    return;
+                }
+                
+                // 显示到Multi Editor
+                const result = await ipcRenderer.invoke('waapi-show-multi-editor', port, objectIds);
+                
+                if (result.success) {
+                    // 成功提示（可选）
+                } else {
+                    alert((typeof t === 'function' ? t('setStreaming.multiEditorFailed') : '显示到Multi Editor失败') + ': ' + result.message);
+                }
+            } catch (error) {
+                alert((typeof t === 'function' ? t('setStreaming.multiEditorFailed') : '显示到Multi Editor失败') + ': ' + error.message);
+            } finally {
+                setStreamingMultiEditorBtn.disabled = false;
+                setStreamingMultiEditorBtn.textContent = typeof t === 'function' ? t('setStreaming.multiEditorBtn') : '显示到Multi Editor';
+            }
+        });
+
+        function updateSetStreamingTable() {
+            const countText = typeof t === 'function' ? t('setStreaming.resultsCount') : '个对象';
+            setStreamingCount.textContent = `${setStreamingResults.length} ${countText}`;
+            setStreamingClearBtn.disabled = setStreamingResults.length === 0;
+            if (setStreamingResults.length > 0) {
+                setStreamingListViewBtn.style.display = 'inline-block';
+                setStreamingMultiEditorBtn.style.display = 'inline-block';
+            } else {
+                setStreamingListViewBtn.style.display = 'none';
+                setStreamingMultiEditorBtn.style.display = 'none';
+            }
+            if (setStreamingResults.length === 0) {
+                const emptyText = typeof t === 'function' ? t('setStreaming.emptyState') : '请点击"检测选中容器"按钮';
+                setStreamingBody.innerHTML = `<tr><td colspan="6" class="empty-state" id="setStreamingEmptyState">${emptyText}</td></tr>`;
+                return;
+            }
+            setStreamingBody.innerHTML = setStreamingResults.map((item, index) => `
+                <tr>
+                    <td><button class="btn-locate" onclick="locateObject('${item.id}')" title="定位"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></button></td>
+                    <td>${index + 1}</td>
+                    <td>${item.name || 'N/A'}</td>
+                    <td>${item.duration !== null && item.duration !== undefined ? item.duration.toFixed(2) : 'N/A'}</td>
+                    <td>${item.shouldSet ? (typeof t === 'function' ? t('setStreaming.yes') : '是') : (typeof t === 'function' ? t('setStreaming.no') : '否')}</td>
+                    <td>${item.currentStreaming ? (typeof t === 'function' ? t('setStreaming.enabled') : '已启用') : (typeof t === 'function' ? t('setStreaming.disabled') : '未启用')}</td>
+                </tr>
+
+                `).join('');
+        }
+
+        // 删除未使用WAV功能
+        let removeWavsResults = [];
+        let originalsPath = '';
+        const selectOriginalsBtn = document.getElementById('selectOriginalsBtn');
+        const originalsPathDisplay = document.getElementById('originalsPath');
+        const removeWavsScanBtn = document.getElementById('removeWavsScanBtn');
+        const removeWavsConfirmBtn = document.getElementById('removeWavsConfirmBtn');
+        const removeWavsClearBtn = document.getElementById('removeWavsClearBtn');
+        const removeWavsBody = document.getElementById('removeWavsBody');
+        const removeWavsCount = document.getElementById('removeWavsCount');
+
+        selectOriginalsBtn.addEventListener('click', async () => {
+            const result = await ipcRenderer.invoke('waapi-select-folder');
+            if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+                originalsPath = result.filePaths[0];
+                originalsPathDisplay.textContent = originalsPath;
+            }
+        });
+
+        removeWavsScanBtn.addEventListener('click', async () => {
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('removeWavs.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+            if (!originalsPath) {
+                alert(typeof t === 'function' ? t('removeWavs.alertNoPath') : '请先选择Originals文件夹');
+                return;
+            }
+            const port = parseInt(portInput.value) || 8080;
+            
+            removeWavsScanBtn.disabled = true;
+            removeWavsScanBtn.textContent = typeof t === 'function' ? t('removeWavs.scanBtnScanning') : '扫描中...';
+            
+            try {
+                const result = await ipcRenderer.invoke('waapi-remove-wavs-scan', port, originalsPath);
+                removeWavsResults = result.results || [];
+                updateRemoveWavsTable();
+                if (removeWavsResults.length > 0) {
+                    removeWavsConfirmBtn.style.display = 'inline-block';
+                }
+            } catch (error) {
+                alert((typeof t === 'function' ? t('removeWavs.alertScanFailed') : '扫描失败') + ': ' + error.message);
+            } finally {
+                removeWavsScanBtn.disabled = false;
+                removeWavsScanBtn.textContent = typeof t === 'function' ? t('removeWavs.scanBtn') : '扫描未使用文件';
+            }
+        });
+
+        removeWavsConfirmBtn.addEventListener('click', async () => {
+            if (removeWavsResults.length === 0) return;
+            
+            const totalSize = removeWavsResults.reduce((sum, item) => sum + (item.size || 0), 0);
+            const sizeMB = (totalSize / 1024 / 1024).toFixed(2);
+            
+            const confirmed = await ipcRenderer.invoke('waapi-show-confirm', {
+                type: 'warning',
+                title: typeof t === 'function' ? t('removeWavs.confirmTitle') : '确认删除',
+                message: typeof t === 'function' ? t('removeWavs.confirmMessage', { count: removeWavsResults.length, size: sizeMB }) : `确定要删除 ${removeWavsResults.length} 个未使用的WAV文件吗？\n总大小: ${sizeMB} MB\n此操作不可撤销！`,
+                buttons: typeof t === 'function' ? [t('common.cancel'), t('removeWavs.confirmBtn')] : ['取消', '确认删除'],
+                defaultId: 1
+            });
+            
+            if (confirmed.response === 1) {
+                removeWavsConfirmBtn.disabled = true;
+                removeWavsConfirmBtn.textContent = typeof t === 'function' ? t('removeWavs.confirmBtnDeleting') : '删除中...';
+                
+                try {
+                    const result = await ipcRenderer.invoke('waapi-remove-wavs-execute', removeWavsResults);
+                    if (result.success) {
+                        alert(typeof t === 'function' ? t('removeWavs.successMessage', { count: result.count }) : `成功删除 ${result.count} 个文件`);
+                        removeWavsResults = [];
+                        updateRemoveWavsTable();
+                        removeWavsConfirmBtn.style.display = 'none';
+                    } else {
+                        alert((typeof t === 'function' ? t('removeWavs.alertDeleteFailed') : '删除失败') + ': ' + result.message);
+                    }
+                } catch (error) {
+                    alert((typeof t === 'function' ? t('removeWavs.alertDeleteFailed') : '删除失败') + ': ' + error.message);
+                } finally {
+                    removeWavsConfirmBtn.disabled = false;
+                    removeWavsConfirmBtn.textContent = typeof t === 'function' ? t('removeWavs.confirmBtn') : '确认删除';
+                }
+            }
+        });
+
+        removeWavsClearBtn.addEventListener('click', () => {
+            removeWavsResults = [];
+            updateRemoveWavsTable();
+            removeWavsConfirmBtn.style.display = 'none';
+        });
+
+        function updateRemoveWavsTable() {
+            const countText = typeof t === 'function' ? t('removeWavs.resultsCount') : '个文件';
+            removeWavsCount.textContent = `${removeWavsResults.length} ${countText}`;
+            removeWavsClearBtn.disabled = removeWavsResults.length === 0;
+            if (removeWavsResults.length === 0) {
+                const emptyText = typeof t === 'function' ? t('removeWavs.emptyState') : '请点击"扫描未使用文件"按钮';
+                removeWavsBody.innerHTML = `<tr><td colspan="4" class="empty-state" id="removeWavsEmptyState">${emptyText}</td></tr>`;
+                return;
+            }
+            removeWavsBody.innerHTML = removeWavsResults.map((item, index) => {
+                const sizeKB = ((item.size || 0) / 1024).toFixed(2);
+                const date = item.mtime ? new Date(item.mtime).toLocaleString('zh-CN') : 'N/A';
+                return `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td style="font-family: monospace; font-size: 12px;">${item.path || 'N/A'}</td>
+                        <td>${sizeKB} KB</td>
+                        <td>${date}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // 自动获取Originals路径
+        (async () => {
+            if (isConnected) {
+                const port = parseInt(portInput.value) || 8080;
+                try {
+                    const result = await ipcRenderer.invoke('waapi-get-originals-path', port);
+                    if (result.success && result.path) {
+                        originalsPath = result.path;
+                        originalsPathDisplay.textContent = originalsPath;
+                    }
+                } catch (error) {
+                    // 忽略错误，用户可以手动选择
+                }
+            }
+        })();
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,923 @@
+const autobahn = require('autobahn');
+const ak = require('./waapi.js').ak;
+const fs = require('fs');
+const path = require('path');
+
+// ==================== 辅助函数 ====================
+
+/**
+ * 创建WAAPI连接
+ */
+function createConnection(port) {
+    return new Promise((resolve, reject) => {
+        const connection = new autobahn.Connection({
+            url: `ws://127.0.0.1:${port}/waapi`,
+            realm: 'realm1',
+            retry_if_unreachable: 1
+        });
+
+        const timeout = setTimeout(() => {
+            connection.close();
+            reject(new Error('连接超时'));
+        }, 5000);
+
+        connection.onopen = (session) => {
+            clearTimeout(timeout);
+            resolve({ session, connection });
+        };
+
+        connection.onclose = (reason) => {
+            clearTimeout(timeout);
+            const isNormalClose = reason === 'closed' || reason === 'wamp.error.goodbye_and_out';
+            if (!isNormalClose) {
+                reject(new Error(`连接失败: ${reason}`));
+            }
+        };
+
+        connection.open();
+    });
+}
+
+/**
+ * 遍历Wwise工程层级结构
+ */
+async function* walkWproj(session, startGuidsOrPaths, properties = [], types = []) {
+    const returnProps = properties.length > 0 ? properties : ['id', 'name', 'type', 'path'];
+    const options = {
+        return: returnProps
+    };
+
+    let waql;
+    if (Array.isArray(startGuidsOrPaths)) {
+        // 多个GUID
+        const guidList = startGuidsOrPaths.map(g => `"${g}"`).join(', ');
+        waql = `select descendants where id in (${guidList})`;
+    } else if (typeof startGuidsOrPaths === 'string') {
+        if (startGuidsOrPaths.startsWith('\\')) {
+            // 路径，使用from语法
+            waql = `"${startGuidsOrPaths}" select descendants`;
+        } else {
+            // GUID，使用from语法
+            waql = `"${startGuidsOrPaths}" select descendants`;
+        }
+    } else {
+        throw new Error('Invalid startGuidsOrPaths');
+    }
+
+    // 添加类型过滤
+    if (types.length > 0) {
+        const typeFilter = types.map(t => `type = "${t}"`).join(' or ');
+        waql += ` where ${typeFilter}`;
+    }
+
+    try {
+        const result = await session.call(ak.wwise.core.object.get, [], { waql }, options);
+        const objects = result.kwargs?.return || result.return || [];
+
+        for (const obj of objects) {
+            // 根据请求的属性返回对应的值
+            if (properties.length === 0) {
+                yield obj;
+            } else if (properties.length === 1) {
+                yield obj[properties[0]];
+            } else {
+                yield properties.map(prop => obj[prop]);
+            }
+        }
+    } catch (error) {
+        // 如果descendants查询失败，尝试直接查询对象本身
+        try {
+            let directWaql;
+            if (typeof startGuidsOrPaths === 'string') {
+                if (startGuidsOrPaths.startsWith('\\')) {
+                    directWaql = `"${startGuidsOrPaths}"`;
+                } else {
+                    directWaql = `"${startGuidsOrPaths}"`;
+                }
+            } else {
+                throw error;
+            }
+
+            const result = await session.call(ak.wwise.core.object.get, [], { waql: directWaql }, options);
+            const objects = result.kwargs?.return || result.return || [];
+            
+            for (const obj of objects) {
+                if (types.length === 0 || types.includes(obj.type)) {
+                    if (properties.length === 0) {
+                        yield obj;
+                    } else if (properties.length === 1) {
+                        yield obj[properties[0]];
+                    } else {
+                        yield properties.map(prop => obj[prop]);
+                    }
+                }
+            }
+        } catch (err) {
+            throw error;
+        }
+    }
+}
+
+/**
+ * 获取当前选中的对象
+ */
+async function getSelectedObjects(session) {
+    try {
+        const result = await session.call(ak.wwise.ui.getSelectedObjects, [], {}, {});
+        return result.kwargs?.objects || result.objects || [];
+    } catch (error) {
+        throw new Error(`获取选中对象失败: ${error.error || error.message}`);
+    }
+}
+
+/**
+ * 获取对象属性值
+ */
+async function getPropertyValue(session, objectId, propertyName) {
+    try {
+        const result = await session.call(ak.wwise.core.object.get, [], {
+            waql: `"${objectId}"`
+        }, {
+            return: [propertyName]
+        });
+
+        const objects = result.kwargs?.return || result.return || [];
+        if (objects.length === 0) {
+            return null;
+        }
+
+        const value = objects[0][propertyName];
+        return value !== undefined ? value : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+/**
+ * 设置对象属性值
+ */
+async function setPropertyValue(session, objectId, propertyName, value) {
+    try {
+        // 使用 ak.wwise.core.object.setProperty（WAAPI标准API）
+        await session.call(ak.wwise.core.object.setProperty, [], {
+            object: objectId,
+            property: propertyName,
+            value: value
+        });
+        return true;
+    } catch (error) {
+        throw new Error(`设置属性失败: ${error.error || error.message}`);
+    }
+}
+
+/**
+ * 检查对象是否存在
+ */
+async function doesObjectExist(session, objectId) {
+    try {
+        const result = await session.call(ak.wwise.core.object.get, [], {
+            waql: `"${objectId}"`
+        }, {
+            return: ['id']
+        });
+
+        const objects = result.kwargs?.return || result.return || [];
+        return objects.length > 0;
+    } catch (error) {
+        return false;
+    }
+}
+
+/**
+ * 开始Undo Group
+ */
+async function beginUndoGroup(session) {
+    try {
+        await session.call(ak.wwise.core.undo.beginGroup, [], {});
+    } catch (error) {
+        // 忽略错误，某些版本的WAAPI可能不支持
+    }
+}
+
+/**
+ * 结束Undo Group
+ */
+async function endUndoGroup(session, name) {
+    try {
+        await session.call(ak.wwise.core.undo.endGroup, [], { name });
+    } catch (error) {
+        // 忽略错误，某些版本的WAAPI可能不支持
+    }
+}
+
+/**
+ * 删除对象
+ */
+async function deleteObject(session, objectId) {
+    try {
+        await session.call(ak.wwise.core.object.delete, [], {
+            object: objectId
+        });
+        return true;
+    } catch (error) {
+        throw new Error(`删除对象失败: ${error.error || error.message}`);
+    }
+}
+
+// ==================== 主要功能 ====================
+
+/**
+ * 测试连接
+ */
+async function testConnection(port = 8080) {
+    const { session, connection } = await createConnection(port);
+    try {
+        const wwiseInfo = await session.call(ak.wwise.core.getInfo, [], {});
+        const projectInfo = await session.call(ak.wwise.core.getProjectInfo, [], {});
+
+        let version = '未知版本';
+        if (wwiseInfo.kwargs?.version) {
+            if (typeof wwiseInfo.kwargs.version === 'string') {
+                version = wwiseInfo.kwargs.version;
+            } else if (typeof wwiseInfo.kwargs.version === 'object') {
+                version = wwiseInfo.kwargs.version.displayName || 
+                         wwiseInfo.kwargs.version.versionName || 
+                         '未知版本';
+            }
+        }
+
+        let projectName = '未命名项目';
+        if (projectInfo.kwargs?.project?.name) {
+            projectName = projectInfo.kwargs.project.name;
+        } else if (projectInfo.kwargs?.name) {
+            projectName = projectInfo.kwargs.name;
+        } else if (projectInfo.project?.name) {
+            projectName = projectInfo.project.name;
+        } else if (projectInfo.name) {
+            projectName = projectInfo.name;
+        }
+
+        connection.close();
+        return {
+            success: true,
+            projectName,
+            wwiseVersion: version
+        };
+    } catch (error) {
+        connection.close();
+        return {
+            success: false,
+            message: error.error || error.message || '连接失败'
+        };
+    }
+}
+
+/**
+ * 获取Originals路径
+ */
+async function getOriginalsPath(port = 8080) {
+    const { session, connection } = await createConnection(port);
+    try {
+        const projectInfo = await session.call(ak.wwise.core.getProjectInfo, [], {});
+        const projectPath = projectInfo.kwargs?.project?.path || 
+                           projectInfo.project?.path || 
+                           projectInfo.kwargs?.path || '';
+
+        connection.close();
+
+        if (projectPath) {
+            const projectDir = path.dirname(projectPath);
+            const originalsPath = path.join(projectDir, 'Originals');
+            if (fs.existsSync(originalsPath)) {
+                return {
+                    success: true,
+                    path: originalsPath
+                };
+            }
+        }
+
+        return {
+            success: false,
+            message: '无法找到Originals文件夹'
+        };
+    } catch (error) {
+        connection.close();
+        return {
+            success: false,
+            message: error.error || error.message || '获取路径失败'
+        };
+    }
+}
+
+/**
+ * 重置音量推子 - 扫描
+ */
+async function resetFadersScan(port, scope) {
+    const { session, connection } = await createConnection(port);
+    try {
+        const selectedObjects = await getSelectedObjects(session);
+        if (selectedObjects.length === 0) {
+            connection.close();
+            return {
+                success: false,
+                message: '请先在Wwise中选择要重置的对象'
+            };
+        }
+
+        const results = [];
+        const processedIds = new Set(); // 用于去重
+        
+        // scope现在是一个数组，可能包含'selected'和/或'children'
+        const includeSelected = Array.isArray(scope) ? scope.includes('selected') : scope === 'selected';
+        const includeChildren = Array.isArray(scope) ? scope.includes('children') : scope === 'children';
+
+        for (const selectedObj of selectedObjects) {
+            const startGuid = selectedObj.id;
+
+            // 如果包含选中对象本身
+            if (includeSelected) {
+                try {
+                    const objResult = await session.call(ak.wwise.core.object.get, [], {
+                        waql: `"${startGuid}"`
+                    }, {
+                        return: ['id', 'name', 'type', 'notes']
+                    });
+                    const obj = (objResult.kwargs?.return || objResult.return || [])[0];
+                    if (obj && !processedIds.has(obj.id)) {
+                        const objNotes = obj.notes || '';
+                        if (!objNotes.includes('@ignore')) {
+                            // 确定属性名
+                            let propName = 'Volume';
+                            if (obj.type === 'Bus' || obj.type === 'AuxBus') {
+                                propName = 'BusVolume';
+                            }
+                            
+                            // 使用getPropertyValue获取属性值
+                            const curVolume = await getPropertyValue(session, obj.id, propName);
+                            if (curVolume !== null && curVolume !== undefined) {
+                                results.push({
+                                    id: obj.id,
+                                    name: obj.name || 'N/A',
+                                    type: obj.type || 'N/A',
+                                    originalVolume: curVolume,
+                                    propertyName: propName,
+                                    status: curVolume === 0 ? '已归零' : '待重置'
+                                });
+                                processedIds.add(obj.id);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('查询对象失败:', error);
+                }
+            }
+
+            // 如果包含子对象
+            if (includeChildren) {
+                // 遍历对象及其子对象
+                for await (const objData of walkWproj(session, startGuid, ['id', 'name', 'type', 'notes'], [])) {
+                    let objId, objName, objType, objNotes;
+                    
+                    if (Array.isArray(objData)) {
+                        [objId, objName, objType, objNotes] = objData;
+                    } else {
+                        objId = objData.id;
+                        objName = objData.name;
+                        objType = objData.type;
+                        objNotes = objData.notes || '';
+                    }
+
+                    // 如果已经处理过，跳过
+                    if (processedIds.has(objId)) {
+                        continue;
+                    }
+
+                    // 检查是否忽略
+                    if (objNotes && objNotes.includes('@ignore')) {
+                        continue;
+                    }
+
+                    // 确定属性名
+                    let propName = 'Volume';
+                    if (objType === 'Bus' || objType === 'AuxBus') {
+                        propName = 'BusVolume';
+                    }
+
+                    // 获取当前音量
+                    const curVolume = await getPropertyValue(session, objId, propName);
+                    if (curVolume !== null && curVolume !== undefined) {
+                        results.push({
+                            id: objId,
+                            name: objName || 'N/A',
+                            type: objType || 'N/A',
+                            originalVolume: curVolume,
+                            propertyName: propName,
+                            status: curVolume === 0 ? '已归零' : '待重置'
+                        });
+                        processedIds.add(objId);
+                    }
+                }
+            }
+        }
+
+        connection.close();
+        return {
+            success: true,
+            results
+        };
+    } catch (error) {
+        connection.close();
+        return {
+            success: false,
+            message: error.error || error.message || '扫描失败',
+            results: []
+        };
+    }
+}
+
+/**
+ * 定位对象到Wwise窗口
+ */
+async function locateObject(port, objectId) {
+    const { session, connection } = await createConnection(port);
+    try {
+        // 先尝试使用新版本命令 FindInProjectExplorerSelectionChannel1
+        let commandSuccess = false;
+        try {
+            await session.call(ak.wwise.ui.commands.execute, [], {
+                command: "FindInProjectExplorerSelectionChannel1",
+                objects: [objectId]
+            });
+            commandSuccess = true;
+        } catch (newCmdError) {
+            // 如果新版本命令失败，尝试使用旧版本命令 FindInProjectExplorerSyncGroup1
+            console.log('新版本定位命令失败，尝试旧版本命令:', newCmdError);
+            try {
+                await session.call(ak.wwise.ui.commands.execute, [], {
+                    command: "FindInProjectExplorerSyncGroup1",
+                    objects: [objectId]
+                });
+                commandSuccess = true;
+            } catch (oldCmdError) {
+                // 如果两个命令都失败，抛出错误
+                console.log('旧版本定位命令也失败:', oldCmdError);
+                throw new Error(`定位失败: ${oldCmdError.error || oldCmdError.message || '未知错误'}`);
+            }
+        }
+        
+        connection.close();
+        return {
+            success: true
+        };
+    } catch (error) {
+        connection.close();
+        return {
+            success: false,
+            message: error.error || error.message || '定位失败'
+        };
+    }
+}
+
+/**
+ * 显示对象到List View
+ */
+async function showListView(port, objectIds, searchValue = '') {
+    const { session, connection } = await createConnection(port);
+    try {
+        // 执行ShowListView命令
+        const commandParams = {
+            command: "ShowListView",
+            objects: objectIds
+        };
+        
+        // 如果提供了搜索值，添加到参数中
+        if (searchValue && searchValue.trim()) {
+            commandParams.value = searchValue.trim();
+        }
+        
+        await session.call(ak.wwise.ui.commands.execute, [], commandParams);
+        
+        connection.close();
+        return {
+            success: true
+        };
+    } catch (error) {
+        connection.close();
+        return {
+            success: false,
+            message: error.error || error.message || '显示到List View失败'
+        };
+    }
+}
+
+/**
+ * 显示对象到Multi Editor
+ */
+async function showMultiEditor(port, objectIds) {
+    const { session, connection } = await createConnection(port);
+    try {
+        // 执行ShowMultiEditor命令
+        await session.call(ak.wwise.ui.commands.execute, [], {
+            command: "ShowMultiEditor",
+            objects: objectIds
+        });
+        
+        connection.close();
+        return {
+            success: true
+        };
+    } catch (error) {
+        connection.close();
+        return {
+            success: false,
+            message: error.error || error.message || '显示到Multi Editor失败'
+        };
+    }
+}
+
+/**
+ * 重置音量推子 - 执行
+ */
+async function resetFadersExecute(port, scope, results) {
+    const { session, connection } = await createConnection(port);
+    try {
+        // 参考示例，不使用Undo Group，直接设置属性
+        // 过滤掉已经归零的对象
+        const itemsToReset = results.filter(item => item.status !== '已归零');
+        
+        let count = 0;
+        const resetIds = []; // 记录成功重置的对象ID
+        // 逐个设置，参考示例中的简单方式
+        for (const item of itemsToReset) {
+            try {
+                // 使用 setProperty API（参考WAAPI标准用法）
+                await session.call(ak.wwise.core.object.setProperty, [], {
+                    object: item.id,
+                    property: item.propertyName,
+                    value: 0
+                });
+                resetIds.push(item.id);
+                count++;
+            } catch (error) {
+                console.error(`重置对象 ${item.name} (${item.id}) 失败:`, error);
+            }
+        }
+
+        connection.close();
+        return {
+            success: true,
+            count,
+            resetIds // 返回成功重置的对象ID列表
+        };
+    } catch (error) {
+        connection.close();
+        return {
+            success: false,
+            message: error.error || error.message || '重置失败',
+            count: 0
+        };
+    }
+}
+
+/**
+ * 删除无效Event - 扫描
+ */
+async function deleteInvalidEventsScan(port) {
+    const { session, connection } = await createConnection(port);
+    try {
+        const results = [];
+        const actionTypesToCheck = new Set([1, 2, 7, 9, 34, 37, 41]); // 引用对象的Action类型
+
+        // 遍历所有Event
+        for await (const eventData of walkWproj(session, '\\Events', ['id', 'name', 'path'], ['Event'])) {
+            let eventGuid, eventName, eventPath;
+            
+            if (Array.isArray(eventData)) {
+                [eventGuid, eventName, eventPath] = eventData;
+            } else {
+                eventGuid = eventData.id;
+                eventName = eventData.name;
+                eventPath = eventData.path;
+            }
+
+            let numValidActions = 0;
+
+            // 遍历Event的所有Action
+            try {
+                for await (const actionData of walkWproj(session, eventGuid, ['id', 'ActionType', 'Target'], ['Action'])) {
+                    let actionId, actionType, target;
+                    
+                    if (Array.isArray(actionData)) {
+                        [actionId, actionType, target] = actionData;
+                    } else {
+                        actionId = actionData.id;
+                        actionType = actionData.ActionType;
+                        target = actionData.Target;
+                    }
+
+                    if (actionTypesToCheck.has(actionType)) {
+                        // 检查目标对象是否存在
+                        if (target && target.id) {
+                            if (await doesObjectExist(session, target.id)) {
+                                numValidActions++;
+                            }
+                        }
+                    } else {
+                        // 不引用对象的Action，视为有效
+                        numValidActions++;
+                    }
+                }
+            } catch (error) {
+                // 如果无法获取Action，视为无效Event
+            }
+
+            if (numValidActions === 0) {
+                results.push({
+                    guid: eventGuid,
+                    name: eventName || 'N/A',
+                    path: eventPath || 'N/A',
+                    reason: '所有Action都引用不存在的对象'
+                });
+            }
+        }
+
+        connection.close();
+        return {
+            success: true,
+            results
+        };
+    } catch (error) {
+        connection.close();
+        return {
+            success: false,
+            message: error.error || error.message || '扫描失败',
+            results: []
+        };
+    }
+}
+
+/**
+ * 删除无效Event - 执行
+ */
+async function deleteInvalidEventsExecute(port, results) {
+    const { session, connection } = await createConnection(port);
+    try {
+        await beginUndoGroup(session);
+
+        let count = 0;
+        for (const item of results) {
+            try {
+                await deleteObject(session, item.guid);
+                count++;
+            } catch (error) {
+                console.error(`删除Event ${item.name} 失败:`, error);
+            }
+        }
+
+        await endUndoGroup(session, 'Delete Invalid Events');
+
+        connection.close();
+        return {
+            success: true,
+            count
+        };
+    } catch (error) {
+        connection.close();
+        return {
+            success: false,
+            message: error.error || error.message || '删除失败',
+            count: 0
+        };
+    }
+}
+
+/**
+ * 设置流播放 - 扫描
+ */
+async function setStreamingScan(port, threshold) {
+    const { session, connection } = await createConnection(port);
+    try {
+        const selectedObjects = await getSelectedObjects(session);
+        if (selectedObjects.length === 0) {
+            connection.close();
+            return {
+                success: false,
+                message: '请先在Wwise中选择容器对象'
+            };
+        }
+
+        const results = [];
+
+        for (const selectedObj of selectedObjects) {
+            const containerGuid = selectedObj.id;
+
+            // 遍历容器下的所有Sound对象
+            for await (const soundData of walkWproj(session, containerGuid, ['id', 'name', 'maxDurationSource'], ['Sound'])) {
+                let soundId, soundName, maxDurationSource;
+                
+                if (Array.isArray(soundData)) {
+                    [soundId, soundName, maxDurationSource] = soundData;
+                } else {
+                    soundId = soundData.id;
+                    soundName = soundData.name;
+                    maxDurationSource = soundData.maxDurationSource;
+                }
+
+                if (!maxDurationSource || !maxDurationSource.trimmedDuration) {
+                    continue;
+                }
+
+                const trimmedDuration = maxDurationSource.trimmedDuration; // 单位：秒
+                const shouldSet = trimmedDuration > threshold;
+
+                // 获取当前流播放状态
+                const currentStreaming = await getPropertyValue(session, soundId, 'IsStreamingEnabled') || false;
+
+                results.push({
+                    id: soundId,
+                    name: soundName || 'N/A',
+                    duration: trimmedDuration,
+                    shouldSet: shouldSet,
+                    currentStreaming: currentStreaming
+                });
+            }
+        }
+
+        // 只返回需要设置的对象
+        const filteredResults = results.filter(r => r.shouldSet);
+
+        connection.close();
+        return {
+            success: true,
+            results: filteredResults
+        };
+    } catch (error) {
+        connection.close();
+        return {
+            success: false,
+            message: error.error || error.message || '扫描失败',
+            results: []
+        };
+    }
+}
+
+/**
+ * 设置流播放 - 执行
+ */
+async function setStreamingExecute(port, threshold, results) {
+    const { session, connection } = await createConnection(port);
+    try {
+        await beginUndoGroup(session);
+
+        let count = 0;
+        for (const item of results) {
+            if (!item.shouldSet) continue;
+
+            try {
+                await setPropertyValue(session, item.id, 'IsStreamingEnabled', true);
+                await setPropertyValue(session, item.id, 'IsNonCachable', false);
+                await setPropertyValue(session, item.id, 'IsZeroLantency', false);
+                await setPropertyValue(session, item.id, 'PreFetchLength', 400);
+                count++;
+            } catch (error) {
+                console.error(`设置对象 ${item.name} 流播放失败:`, error);
+            }
+        }
+
+        await endUndoGroup(session, 'Bulk Set SFX Streaming');
+
+        connection.close();
+        return {
+            success: true,
+            count
+        };
+    } catch (error) {
+        connection.close();
+        return {
+            success: false,
+            message: error.error || error.message || '设置失败',
+            count: 0
+        };
+    }
+}
+
+/**
+ * 删除未使用WAV - 扫描
+ */
+async function removeUnusedWavsScan(port, originalsPath) {
+    const { session, connection } = await createConnection(port);
+    try {
+        // 获取所有Sound对象引用的音频文件
+        const usedFiles = new Set();
+
+        for await (const soundData of walkWproj(session, '\\Actor-Mixer Hierarchy', ['id', 'sound:originalWavFilePath'], ['Sound'])) {
+            let soundId, wavPath;
+            
+            if (Array.isArray(soundData)) {
+                [soundId, wavPath] = soundData;
+            } else {
+                soundId = soundData.id;
+                wavPath = soundData['sound:originalWavFilePath'] || soundData.originalWavFilePath;
+            }
+
+            if (wavPath) {
+                // 标准化路径
+                const normalizedPath = path.normalize(wavPath).toLowerCase();
+                usedFiles.add(normalizedPath);
+            }
+        }
+
+        connection.close();
+
+        // 扫描Originals文件夹下的所有WAV文件
+        const unusedFiles = [];
+        
+        function scanDirectory(dir) {
+            try {
+                const files = fs.readdirSync(dir);
+                for (const file of files) {
+                    const filePath = path.join(dir, file);
+                    const stat = fs.statSync(filePath);
+                    
+                    if (stat.isDirectory()) {
+                        scanDirectory(filePath);
+                    } else if (file.toLowerCase().endsWith('.wav')) {
+                        const normalizedPath = path.normalize(filePath).toLowerCase();
+                        if (!usedFiles.has(normalizedPath)) {
+                            unusedFiles.push({
+                                path: filePath,
+                                size: stat.size,
+                                mtime: stat.mtime.getTime()
+                            });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(`扫描目录失败: ${dir}`, error);
+            }
+        }
+
+        if (fs.existsSync(originalsPath)) {
+            scanDirectory(originalsPath);
+        }
+
+        return {
+            success: true,
+            results: unusedFiles
+        };
+    } catch (error) {
+        connection.close();
+        return {
+            success: false,
+            message: error.error || error.message || '扫描失败',
+            results: []
+        };
+    }
+}
+
+/**
+ * 删除未使用WAV - 执行
+ */
+async function removeUnusedWavsExecute(results) {
+    try {
+        let count = 0;
+        for (const item of results) {
+            try {
+                if (fs.existsSync(item.path)) {
+                    fs.unlinkSync(item.path);
+                    count++;
+                }
+            } catch (error) {
+                console.error(`删除文件失败: ${item.path}`, error);
+            }
+        }
+
+        return {
+            success: true,
+            count
+        };
+    } catch (error) {
+        return {
+            success: false,
+            message: error.message || '删除失败',
+            count: 0
+        };
+    }
+}
+
+module.exports = {
+    testConnection,
+    getOriginalsPath,
+    resetFadersScan,
+    resetFadersExecute,
+    deleteInvalidEventsScan,
+    deleteInvalidEventsExecute,
+    setStreamingScan,
+    setStreamingExecute,
+    removeUnusedWavsScan,
+    removeUnusedWavsExecute,
+    locateObject,
+    showListView,
+    showMultiEditor
+};
+
