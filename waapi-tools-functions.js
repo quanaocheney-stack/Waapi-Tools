@@ -104,9 +104,8 @@ async function* walkWproj(session, startGuidsOrPaths, properties = [], types = [
 
     try {
         const result = await session.call(ak.wwise.core.object.get, [], {
-            waql: waql,
-            return: returnProps
-        });
+            waql: waql
+        }, options);
         const objects = result.kwargs?.return || result.return || [];
 
         for (const obj of objects) {
@@ -134,9 +133,8 @@ async function* walkWproj(session, startGuidsOrPaths, properties = [], types = [
             }
 
             const result = await session.call(ak.wwise.core.object.get, [], {
-                waql: directWaql,
-                return: returnProps
-            });
+                waql: directWaql
+            }, options);
             const objects = result.kwargs?.return || result.return || [];
             
             for (const obj of objects) {
@@ -161,7 +159,9 @@ async function* walkWproj(session, startGuidsOrPaths, properties = [], types = [
  */
 async function getSelectedObjects(session) {
     try {
-        const result = await session.call(ak.wwise.ui.getSelectedObjects, [], {}, {});
+        const result = await session.call(ak.wwise.ui.getSelectedObjects, [], {}, {
+            return: ["name", "id", "volume", "type", "path", "playbackDuration"]
+        });
         return result.kwargs?.objects || result.objects || [];
     } catch (error) {
         throw new Error(`获取选中对象失败: ${error.error || error.message}`);
@@ -174,7 +174,8 @@ async function getSelectedObjects(session) {
 async function getPropertyValue(session, objectId, propertyName) {
     try {
         const result = await session.call(ak.wwise.core.object.get, [], {
-            waql: `"${objectId}"`,
+            waql: `"${objectId}"`
+        }, {
             return: [propertyName]
         });
 
@@ -213,7 +214,8 @@ async function setPropertyValue(session, objectId, propertyName, value) {
 async function doesObjectExist(session, objectId) {
     try {
         const result = await session.call(ak.wwise.core.object.get, [], {
-            waql: `"${objectId}"`,
+            waql: `"${objectId}"`
+        }, {
             return: ['id']
         });
 
@@ -336,7 +338,8 @@ async function testConnection(port = 8080) {
             if (projectName === '未命名项目') {
                 try {
                     const projectRootResult = await session.call(ak.wwise.core.object.get, [], {
-                        waql: '\\Actor-Mixer Hierarchy\\Default Work Unit',
+                        waql: '\\Actor-Mixer Hierarchy\\Default Work Unit'
+                    }, {
                         return: ['filePath']
                     });
                     const projectRoot = projectRootResult.kwargs?.return || projectRootResult.return || [];
@@ -427,6 +430,9 @@ async function resetFadersScan(port, scope) {
                 message: '请先在Wwise中选择要重置的对象'
             };
         }
+        
+        // 调试：输出选中对象数量
+        console.log(`获取到 ${selectedObjects.length} 个选中对象`);
 
         const results = [];
         const processedIds = new Set(); // 用于去重
@@ -442,7 +448,8 @@ async function resetFadersScan(port, scope) {
             if (includeSelected) {
                 try {
                     const objResult = await session.call(ak.wwise.core.object.get, [], {
-                        waql: `"${startGuid}"`,
+                        waql: `"${startGuid}"`
+                    }, {
                         return: ['id', 'name', 'type', 'notes']
                     });
                     const obj = (objResult.kwargs?.return || objResult.return || [])[0];
