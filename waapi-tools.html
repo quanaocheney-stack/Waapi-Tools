@@ -401,17 +401,45 @@
             color: white;
         }
 
-        /* 无效原因列默认宽度 */
-        #deleteEventsThReason {
-            min-width: 200px;
-            width: 25%;
-        }
-
+        /* 表格列宽度优化 - 避免标题换行 */
+        
+        /* 重置音量推子表格 */
+        #resetFadersThLocate { width: 60px; min-width: 60px; }
+        #resetFadersThIndex { width: 60px; min-width: 60px; }
+        #resetFadersThName { width: 200px; min-width: 150px; }
+        #resetFadersThType { width: 80px; min-width: 80px; }
+        #resetFadersThVolume { width: 80px; min-width: 80px; }
+        #resetFadersThStatus { width: 80px; min-width: 80px; }
+        
+        /* 删除无效Event表格 */
+        #deleteEventsThLocate { width: 60px; min-width: 60px; }
+        #deleteEventsThIndex { width: 60px; min-width: 60px; }
+        #deleteEventsThName { width: 180px; min-width: 150px; }
+        #deleteEventsThReason { width: 200px; min-width: 180px; }
+        #deleteEventsThGuid { width: auto; min-width: 200px; }
+        
         /* 无效原因列内容字体小一些，避免换行 */
         #deleteEventsBody td:nth-child(4) {
-            min-width: 200px;
-            width: 25%;
             font-size: 12px;
+            white-space: nowrap;
+        }
+        
+        /* 设置流播放表格 */
+        #setStreamingThLocate { width: 60px; min-width: 60px; }
+        #setStreamingThIndex { width: 60px; min-width: 60px; }
+        #setStreamingThName { width: 200px; min-width: 150px; }
+        #setStreamingThDuration { width: 120px; min-width: 120px; white-space: nowrap; }
+        #setStreamingThShouldSet { width: 90px; min-width: 90px; white-space: nowrap; }
+        #setStreamingThStatus { width: 140px; min-width: 140px; white-space: nowrap; }
+        
+        /* 删除未使用WAV表格 */
+        #removeWavsThIndex { width: 60px; min-width: 60px; }
+        #removeWavsThPath { width: auto; min-width: 300px; }
+        #removeWavsThSize { width: 100px; min-width: 100px; white-space: nowrap; }
+        #removeWavsThMtime { width: 160px; min-width: 160px; white-space: nowrap; }
+        
+        /* 所有表头不换行 */
+        th {
             white-space: nowrap;
         }
 
