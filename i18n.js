@@ -5,6 +5,9 @@ const i18n = {
         port: '端口',
         connected: '已连接',
         disconnected: '未连接',
+        connect: '连接',
+        reconnect: '重新连接',
+        connecting: '连接中...',
         tabs: {
             resetFaders: '重置音量推子',
             deleteEvents: '删除无效Event',
@@ -191,6 +194,9 @@ const i18n = {
         port: 'Port',
         connected: 'Connected',
         disconnected: 'Disconnected',
+        connect: 'Connect',
+        reconnect: 'Reconnect',
+        connecting: 'Connecting...',
         tabs: {
             resetFaders: 'Reset Faders',
             deleteEvents: 'Delete Invalid Events',

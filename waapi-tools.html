@@ -492,6 +492,38 @@
             border-color: var(--primary-color);
             transform: scale(1.05);
         }
+
+        .btn-connect {
+            padding: 6px 16px;
+            border: 2px solid var(--primary-color);
+            border-radius: 5px;
+            background: var(--primary-color);
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .btn-connect:hover {
+            background: var(--primary-color-hover, #0056b3);
+            border-color: var(--primary-color-hover, #0056b3);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-connect:active {
+            transform: translateY(0);
+        }
+
+        .btn-connect:disabled {
+            background: var(--bg-tertiary);
+            border-color: var(--border-color);
+            color: var(--text-secondary);
+            cursor: not-allowed;
+            transform: none;
+        }
     </style>
 </head>
 <body>
@@ -502,6 +534,7 @@
             <div class="input-group">
                 <label>端口:</label>
                 <input type="number" id="portInput" value="8080" min="1" max="65535" style="width: 80px;">
+                <button class="btn-connect" id="reconnectBtn" title="重新连接">连接</button>
             </div>
             <div class="status-indicator disconnected" id="statusIndicator"></div>
             <span class="status-text" id="statusText">未连接</span>
@@ -1058,11 +1091,42 @@
             } else {
                 statusText.textContent = typeof t === 'function' ? t('disconnected') : '未连接';
             }
+            updateReconnectButtonText();
         }
+
+        // 重新连接按钮
+        const reconnectBtn = document.getElementById('reconnectBtn');
+        
+        // 更新连接按钮文本
+        function updateReconnectButtonText() {
+            if (typeof t === 'function') {
+                reconnectBtn.textContent = isConnected ? t('reconnect') : t('connect');
+            } else {
+                reconnectBtn.textContent = isConnected ? '重新连接' : '连接';
+            }
+        }
+
+        // 重新连接按钮点击事件
+        reconnectBtn.addEventListener('click', async () => {
+            reconnectBtn.disabled = true;
+            const originalText = reconnectBtn.textContent;
+            if (typeof t === 'function') {
+                reconnectBtn.textContent = t('connecting') || '连接中...';
+            } else {
+                reconnectBtn.textContent = '连接中...';
+            }
+            
+            await testConnection();
+            updateReconnectButtonText();
+            reconnectBtn.disabled = false;
+        });
 
         // 页面加载时测试连接
         testConnection();
-        portInput.addEventListener('change', testConnection);
+        updateReconnectButtonText();
+        
+        // 端口输入框失去焦点时自动连接（可选，也可以移除这行让用户手动点击按钮）
+        // portInput.addEventListener('change', testConnection);
 
         // 重置音量推子功能
         let resetFadersResults = [];
