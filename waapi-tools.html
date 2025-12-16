@@ -652,6 +652,11 @@
         #removeWavsThSize { width: 100px; min-width: 100px; white-space: nowrap; }
         #removeWavsThMtime { width: 160px; min-width: 160px; white-space: nowrap; }
         
+        /* 音频录制表格 */
+        #recordingThIndex { width: 60px; min-width: 60px; }
+        #recordingThFileName { width: auto; min-width: 200px; }
+        #recordingThActions { width: 100px; min-width: 100px; }
+        
         /* 所有表头不换行 */
         th {
             white-space: nowrap;
@@ -824,6 +829,10 @@
                         <button class="btn-secondary" id="recordingPathHelpBtn" style="padding: 6px 10px; font-size: 12px;" title="如何获取录制路径">?</button>
                     </div>
                     <div class="input-group" style="margin-left: 20px;">
+                        <button class="btn-primary" id="startRecordingBtn">开始录制</button>
+                        <button class="btn-danger" id="stopRecordingBtn" disabled>停止</button>
+                    </div>
+                    <div class="input-group" style="margin-left: 20px;">
                         <label id="recordingModeLabel" style="min-width: 70px;">录制模式:</label>
                         <div class="radio-group">
                             <label>
@@ -850,10 +859,6 @@
                     <span id="recordingPathHelp4">4. 将完整路径复制到上方输入框（例如：C:\Users\...\Record.wav）</span><br>
                     <strong id="recordingPathHelpNote">注意：工具会在录制完成后自动将 Record.wav 重命名为对应对象名称</strong>
                 </div>
-                <div class="tool-controls" style="margin-top: 15px;">
-                    <button class="btn-primary" id="startRecordingBtn">开始录制</button>
-                    <button class="btn-danger" id="stopRecordingBtn" disabled>停止</button>
-                </div>
             </div>
             <div class="results-container" style="margin-top: 15px;">
                 <div class="results-header">
@@ -870,9 +875,9 @@
                     <table>
                         <thead>
                             <tr>
-                                <th id="recordingThIndex" style="width: 60px;">序号</th>
+                                <th id="recordingThIndex">序号</th>
                                 <th id="recordingThFileName">文件名</th>
-                                <th id="recordingThActions" style="width: 100px;">操作</th>
+                                <th id="recordingThActions">操作</th>
                             </tr>
                         </thead>
                         <tbody id="recordingResultsBody">
@@ -2545,7 +2550,7 @@
                         <td>${index + 1}</td>
                         <td style="font-family: monospace; font-size: 12px;" title="${filePath}">${fileName}</td>
                         <td>
-                            <button class="btn-success" onclick="openRecordingFile('${filePath.replace(/\\/g, '\\\\')}')" style="padding: 4px 8px; font-size: 12px;">
+                            <button class="btn-success" onclick="openRecordingFile('${filePath.replace(/\\/g, '\\\\')}')" style="padding: 6px 12px; font-size: 12px;">
                                 ${typeof t === 'function' ? t('audioRecording.openFile') : '打开文件'}
                             </button>
                         </td>

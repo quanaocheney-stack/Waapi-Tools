@@ -922,38 +922,43 @@ async function setStreamingScan(port, threshold) {
 
         const results = [];
 
+        // 定义需要检测的对象类型
+        const objectTypes = ['Sound', 'MusicSegment', 'MusicTrack', 'Voice'];
+
         for (const selectedObj of selectedObjects) {
             const containerGuid = selectedObj.id;
 
-            // 遍历容器下的所有Sound对象
-            for await (const soundData of walkWproj(session, containerGuid, ['id', 'name', 'maxDurationSource'], ['Sound'])) {
-                let soundId, soundName, maxDurationSource;
-                
-                if (Array.isArray(soundData)) {
-                    [soundId, soundName, maxDurationSource] = soundData;
-                } else {
-                    soundId = soundData.id;
-                    soundName = soundData.name;
-                    maxDurationSource = soundData.maxDurationSource;
+            // 遍历容器下的所有可录制对象类型
+            for (const objectType of objectTypes) {
+                for await (const objData of walkWproj(session, containerGuid, ['id', 'name', 'maxDurationSource'], [objectType])) {
+                    let objId, objName, maxDurationSource;
+                    
+                    if (Array.isArray(objData)) {
+                        [objId, objName, maxDurationSource] = objData;
+                    } else {
+                        objId = objData.id;
+                        objName = objData.name;
+                        maxDurationSource = objData.maxDurationSource;
+                    }
+
+                    if (!maxDurationSource || !maxDurationSource.trimmedDuration) {
+                        continue;
+                    }
+
+                    const trimmedDuration = maxDurationSource.trimmedDuration; // 单位：秒
+                    const shouldSet = trimmedDuration > threshold;
+
+                    // 获取当前流播放状态
+                    const currentStreaming = await getPropertyValue(session, objId, 'IsStreamingEnabled') || false;
+
+                    results.push({
+                        id: objId,
+                        name: objName || 'N/A',
+                        duration: trimmedDuration,
+                        shouldSet: shouldSet,
+                        currentStreaming: currentStreaming
+                    });
                 }
-
-                if (!maxDurationSource || !maxDurationSource.trimmedDuration) {
-                    continue;
-                }
-
-                const trimmedDuration = maxDurationSource.trimmedDuration; // 单位：秒
-                const shouldSet = trimmedDuration > threshold;
-
-                // 获取当前流播放状态
-                const currentStreaming = await getPropertyValue(session, soundId, 'IsStreamingEnabled') || false;
-
-                results.push({
-                    id: soundId,
-                    name: soundName || 'N/A',
-                    duration: trimmedDuration,
-                    shouldSet: shouldSet,
-                    currentStreaming: currentStreaming
-                });
             }
         }
 
@@ -1227,6 +1232,8 @@ async function getSelectedObjectsForRecording(session) {
 async function filterSoundObjects(session, objects) {
     const audioQueryArgs = `select descendants where parent.type = "ActorMixer" and type != "ActorMixer"`;
     const eventQueryArgs = `select descendants where type = "event"`;
+    const musicQueryArgs = `select descendants where type in ("MusicSegment", "MusicTrack", "MusicSwitchContainer", "MusicPlaylistContainer")`;
+    const containerQueryArgs = `select descendants where type in ("Sound", "Event", "BlendContainer", "RandomSequenceContainer", "SwitchContainer", "SequenceContainer", "MusicSegment", "MusicTrack", "MusicSwitchContainer", "MusicPlaylistContainer")`;
     const resFilteredOptns = {
         return: ['name', 'id', 'type', 'path', 'playbackDuration']
     };
@@ -1237,6 +1244,9 @@ async function filterSoundObjects(session, objects) {
             case 'ActorMixer':
             case 'WorkUnit':
             case 'Folder':
+            case 'SwitchContainer':
+            case 'SequenceContainer':
+                // 先查找 Event
                 const waql = `"${obj.id}"` + eventQueryArgs;
                 let events;
                 try {
@@ -1256,6 +1266,7 @@ async function filterSoundObjects(session, objects) {
                 if (events.kwargs?.return && events.kwargs.return.length > 0) {
                     filteredObjects = filteredObjects.concat(events.kwargs.return);
                 } else {
+                    // 查找音频对象
                     const audioWaql = `"${obj.id}"` + audioQueryArgs;
                     let audios;
                     try {
@@ -1272,15 +1283,65 @@ async function filterSoundObjects(session, objects) {
                             throw returnError;
                         }
                     }
-                    if (audios.kwargs?.return) {
+                    if (audios.kwargs?.return && audios.kwargs.return.length > 0) {
                         filteredObjects = filteredObjects.concat(audios.kwargs.return);
+                    } else {
+                        // 查找 Music 对象
+                        const musicWaql = `"${obj.id}"` + musicQueryArgs;
+                        let musicObjs;
+                        try {
+                            musicObjs = await session.call(ak.wwise.core.object.get, [], {
+                                waql: musicWaql
+                            }, resFilteredOptns);
+                        } catch (returnError) {
+                            if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                                returnError.error === 'ak.wwise.schema_validation_failed') {
+                                musicObjs = await session.call(ak.wwise.core.object.get, [], {
+                                    waql: musicWaql
+                                });
+                            } else {
+                                throw returnError;
+                            }
+                        }
+                        if (musicObjs.kwargs?.return && musicObjs.kwargs.return.length > 0) {
+                            filteredObjects = filteredObjects.concat(musicObjs.kwargs.return);
+                        } else {
+                            // 对于 SwitchContainer 和 SequenceContainer，使用通用查询查找所有可录制对象
+                            if (obj.type === 'SwitchContainer' || obj.type === 'SequenceContainer') {
+                                const containerWaql = `"${obj.id}"` + containerQueryArgs;
+                                let containerObjs;
+                                try {
+                                    containerObjs = await session.call(ak.wwise.core.object.get, [], {
+                                        waql: containerWaql
+                                    }, resFilteredOptns);
+                                } catch (returnError) {
+                                    if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                                        returnError.error === 'ak.wwise.schema_validation_failed') {
+                                        containerObjs = await session.call(ak.wwise.core.object.get, [], {
+                                            waql: containerWaql
+                                        });
+                                    } else {
+                                        throw returnError;
+                                    }
+                                }
+                                if (containerObjs.kwargs?.return && containerObjs.kwargs.return.length > 0) {
+                                    filteredObjects = filteredObjects.concat(containerObjs.kwargs.return);
+                                }
+                            }
+                        }
                     }
                 }
                 break;
+            case 'MusicSegment':
+            case 'MusicTrack':
+            case 'MusicSwitchContainer':
+            case 'MusicPlaylistContainer':
             case 'Sound':
             case 'Event':
             case 'BlendContainer':
             case 'RandomSequenceContainer':
+            case 'SwitchContainer':
+            case 'SequenceContainer':
                 filteredObjects.push(obj);
                 break;
         }
