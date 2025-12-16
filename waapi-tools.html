@@ -53,6 +53,64 @@
             --info-box-border: #4a90e2;
         }
 
+        [data-theme="dark"] tbody tr:nth-child(even) {
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        [data-theme="dark"] tbody tr:hover {
+            background: rgba(102, 126, 234, 0.15);
+        }
+
+        [data-theme="dark"] .empty-state {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+        }
+
+        [data-theme="dark"] .results-header {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        }
+
+        [data-theme="dark"] .info-box {
+            background: linear-gradient(135deg, rgba(33, 150, 243, 0.15) 0%, rgba(33, 150, 243, 0.1) 100%);
+        }
+
+        [data-theme="dark"] .header-controls::after {
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(102, 126, 234, 0.3) 20%, 
+                rgba(102, 126, 234, 0.5) 50%, 
+                rgba(102, 126, 234, 0.3) 80%, 
+                transparent 100%);
+            box-shadow: 0 1px 2px rgba(102, 126, 234, 0.2);
+        }
+
+        [data-theme="dark"] .tabs::after {
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(102, 126, 234, 0.4) 10%, 
+                rgba(102, 126, 234, 0.6) 50%, 
+                rgba(102, 126, 234, 0.4) 90%, 
+                transparent 100%);
+            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.25);
+        }
+
+        [data-theme="dark"] .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 -2px 8px rgba(102, 126, 234, 0.4);
+        }
+
+        [data-theme="dark"] .tab:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        [data-theme="dark"] .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 -2px 8px rgba(102, 126, 234, 0.4);
+        }
+
+        [data-theme="dark"] .tab:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
         body {
             font-family: 'Microsoft YaHei', Arial, sans-serif;
             background: linear-gradient(135deg, var(--body-gradient-start) 0%, var(--body-gradient-end) 100%);
@@ -83,8 +141,24 @@
             gap: 15px;
             align-items: center;
             margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 20px;
+            position: relative;
+        }
+
+        .header-controls::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(102, 126, 234, 0.2) 20%, 
+                rgba(102, 126, 234, 0.4) 50%, 
+                rgba(102, 126, 234, 0.2) 80%, 
+                transparent 100%);
+            box-shadow: 0 1px 2px rgba(102, 126, 234, 0.1);
         }
 
         .input-group {
@@ -139,8 +213,26 @@
         .tabs {
             display: flex;
             gap: 10px;
-            border-bottom: 2px solid var(--border-color);
             margin-bottom: 20px;
+            position: relative;
+            padding-bottom: 0;
+        }
+
+        .tabs::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(102, 126, 234, 0.3) 10%, 
+                rgba(102, 126, 234, 0.5) 50%, 
+                rgba(102, 126, 234, 0.3) 90%, 
+                transparent 100%);
+            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.15);
+            border-radius: 1px;
         }
 
         .tab {
@@ -153,15 +245,31 @@
             font-weight: bold;
             color: var(--text-secondary);
             transition: all 0.3s;
+            border-radius: 8px 8px 0 0;
+            position: relative;
         }
 
         .tab:hover {
             color: var(--primary-color);
+            background: rgba(102, 126, 234, 0.05);
         }
 
         .tab.active {
-            color: var(--primary-color);
-            border-bottom-color: var(--primary-color);
+            color: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-bottom-color: transparent;
+            box-shadow: 0 -2px 8px rgba(102, 126, 234, 0.3);
+            z-index: 1;
+        }
+
+        .tab.active::before {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
         .tab-content {
@@ -192,48 +300,96 @@
         button {
             padding: 10px 20px;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             font-size: 14px;
             cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .btn-primary {
-            background: var(--primary-color);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
         }
 
         .btn-primary:hover {
-            background: #5568d3;
+            background: linear-gradient(135deg, #5568d3 0%, #6a3d8f 100%);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
         }
 
         .btn-primary:disabled {
-            background: #ccc;
+            background: #d0d0d0;
+            color: #888;
             cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
         }
 
         .btn-success {
-            background: var(--success-color);
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
             color: white;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
         }
 
         .btn-success:hover {
-            background: #45a049;
+            background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .btn-success:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
         }
 
         .btn-danger {
-            background: var(--danger-color);
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
             color: white;
+            box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
         }
 
         .btn-danger:hover {
-            background: #da190b;
+            background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+            box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .btn-danger:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(244, 67, 54, 0.3);
         }
 
         .btn-danger:disabled {
-            background: #ccc;
+            background: #d0d0d0;
+            color: #888;
             cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+            color: white;
+            box-shadow: 0 2px 6px rgba(108, 117, 125, 0.25);
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #5a6268 0%, #495057 100%);
+            box-shadow: 0 3px 8px rgba(108, 117, 125, 0.35);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(108, 117, 125, 0.25);
         }
 
         .radio-group {
@@ -275,24 +431,31 @@
         }
 
         .btn-locate {
-            background: var(--primary-color);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 6px 8px;
             font-size: 14px;
-            border-radius: 3px;
+            border-radius: 5px;
             border: none;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 28px;
-            height: 28px;
-            transition: all 0.3s;
+            width: 32px;
+            height: 32px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.25);
         }
 
         .btn-locate:hover {
-            background: #5568d3;
-            transform: scale(1.1);
+            background: linear-gradient(135deg, #5568d3 0%, #6a3d8f 100%);
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.35);
+        }
+
+        .btn-locate:active {
+            transform: translateY(0) scale(1);
+            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.25);
         }
 
         .btn-locate svg {
@@ -324,16 +487,19 @@
             display: flex;
             flex-direction: column;
             border: 1px solid var(--border-color);
-            border-radius: 5px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            background: var(--bg-primary);
         }
 
         .results-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 15px;
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border-color);
+            padding: 14px 18px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+            border-bottom: 2px solid var(--border-color);
+            border-radius: 8px 8px 0 0;
         }
 
         .results-header-actions {
@@ -343,19 +509,30 @@
         }
 
         .btn-clear {
-            background: var(--warning-color);
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
             color: white;
             padding: 6px 12px;
             font-size: 12px;
+            box-shadow: 0 2px 6px rgba(255, 152, 0, 0.25);
         }
 
         .btn-clear:hover {
-            background: #f57c00;
+            background: linear-gradient(135deg, #f57c00 0%, #e65100 100%);
+            box-shadow: 0 3px 8px rgba(255, 152, 0, 0.35);
+            transform: translateY(-1px);
+        }
+
+        .btn-clear:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(255, 152, 0, 0.25);
         }
 
         .btn-clear:disabled {
-            background: #ccc;
+            background: #d0d0d0;
+            color: #888;
             cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
         }
 
         .results-title {
@@ -365,40 +542,77 @@
         }
 
         .results-count {
-            background: var(--primary-color);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 5px 15px;
+            padding: 6px 16px;
             border-radius: 20px;
             font-size: 12px;
+            font-weight: 500;
+            box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+            letter-spacing: 0.3px;
         }
 
         .results-table {
             flex: 1;
             overflow-y: auto;
+            background: var(--bg-primary);
+        }
+
+        .results-table::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .results-table::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+        }
+
+        .results-table::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+        }
+
+        .results-table::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #5568d3 0%, #6a3d8f 100%);
         }
 
         table {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
         }
 
         thead {
-            background: var(--primary-color);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             position: sticky;
             top: 0;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         th, td {
-            padding: 12px;
+            padding: 14px 12px;
             text-align: left;
-            border-bottom: 1px solid var(--border-color);
             color: var(--text-primary);
         }
 
         th {
-            font-weight: bold;
+            font-weight: 600;
             color: white;
+            font-size: 13px;
+            letter-spacing: 0.3px;
+            border-bottom: none;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.15s ease;
+        }
+
+        tbody tr:last-child {
+            border-bottom: none;
         }
 
         /* 表格列宽度优化 - 避免标题换行 */
@@ -443,24 +657,39 @@
             white-space: nowrap;
         }
 
+        tbody tr:nth-child(even) {
+            background: rgba(102, 126, 234, 0.02);
+        }
+
         tbody tr:hover {
-            background: var(--table-hover);
+            background: rgba(102, 126, 234, 0.08);
+            transform: scale(1.001);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        tbody tr:active {
+            background: rgba(102, 126, 234, 0.12);
         }
 
         .empty-state {
             text-align: center;
-            padding: 40px;
+            padding: 50px 40px;
             color: var(--text-tertiary);
+            font-size: 14px;
+            font-style: italic;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.02) 0%, rgba(118, 75, 162, 0.02) 100%);
         }
 
         .info-box {
-            padding: 12px 15px;
-            background: var(--info-box-bg);
-            border-left: 4px solid var(--info-box-border);
-            border-radius: 4px;
-            margin-bottom: 15px;
+            padding: 14px 18px;
+            background: linear-gradient(135deg, rgba(33, 150, 243, 0.08) 0%, rgba(33, 150, 243, 0.05) 100%);
+            border-left: 4px solid #2196F3;
+            border-radius: 6px;
+            margin-bottom: 18px;
             font-size: 13px;
             color: var(--text-primary);
+            line-height: 1.6;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
         .settings-controls {
@@ -588,23 +817,14 @@
             </div>
             <div class="tool-panel">
                 <div class="tool-controls">
-                    <div class="path-display" style="flex: 1;">
-                        <span id="recordingPathDisplay">未设置录制路径</span>
-                        <button class="btn-primary" id="selectRecordingPathBtn" style="padding: 6px 12px; font-size: 12px;">选择路径</button>
+                    <div class="input-group" style="flex: 0 1 auto; max-width: 500px;">
+                        <label id="recordingPathLabel" style="min-width: 80px;">录制路径:</label>
+                        <input type="text" id="recordingPathInput" placeholder="从 Wwise Recorder 插件复制路径..." style="flex: 1; min-width: 180px; max-width: 300px;">
+                        <button class="btn-primary" id="selectRecordingPathBtn" style="padding: 6px 12px; font-size: 12px; white-space: nowrap;">选择</button>
                         <button class="btn-secondary" id="recordingPathHelpBtn" style="padding: 6px 10px; font-size: 12px;" title="如何获取录制路径">?</button>
                     </div>
-                </div>
-                <div class="help-text" id="recordingPathHelpText" style="display: none; margin-top: 10px; padding: 8px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; font-size: 12px; color: #856404;">
-                    <strong id="recordingPathHelpTitle">📋 如何获取录制路径：</strong><br>
-                    <span id="recordingPathHelp1">1. 在 Wwise 中打开 Master Bus → Effect Chain → Recorder 插件</span><br>
-                    <span id="recordingPathHelp2">2. 在 "Authoring Tool Output Path" 中设置路径</span><br>
-                    <span id="recordingPathHelp3">3. 确保文件名使用 "Record.wav"</span><br>
-                    <span id="recordingPathHelp4">4. 将完整路径复制到上方输入框（例如：C:\Users\...\Record.wav）</span><br>
-                    <strong id="recordingPathHelpNote">注意：工具会在录制完成后自动将 Record.wav 重命名为对应对象名称</strong>
-                </div>
-                <div class="tool-controls" style="margin-top: 15px;">
-                    <div class="input-group">
-                        <label id="recordingModeLabel">录制模式:</label>
+                    <div class="input-group" style="margin-left: 20px;">
+                        <label id="recordingModeLabel" style="min-width: 70px;">录制模式:</label>
                         <div class="radio-group">
                             <label>
                                 <input type="radio" name="recordingMode" value="auto" checked>
@@ -615,13 +835,20 @@
                                 <span id="recordingModeManual">手动</span>
                             </label>
                         </div>
-                        <span id="recordingModeHint" style="font-size: 12px; color: var(--text-secondary); margin-left: 10px;">播放完成后自动停止</span>
+                        <div class="input-group" id="recordingDurationGroup" style="display: none; margin-left: 10px;">
+                            <label id="recordingDurationLabel" style="min-width: auto;">时长:</label>
+                            <input type="number" id="recordingDurationInput" value="10" min="1" max="3600" step="1" style="width: 60px;">
+                            <span id="recordingDurationUnit" style="font-size: 13px; margin-left: 4px;">秒</span>
+                        </div>
                     </div>
-                    <div class="input-group" id="recordingDurationGroup" style="display: none;">
-                        <label id="recordingDurationLabel">录制时长:</label>
-                        <input type="number" id="recordingDurationInput" value="10" min="1" max="3600" step="1" style="width: 80px;">
-                        <span id="recordingDurationUnit" style="font-size: 13px;">秒</span>
-                    </div>
+                </div>
+                <div class="help-text" id="recordingPathHelpText" style="display: none; margin-top: 10px; padding: 8px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; font-size: 12px; color: #856404;">
+                    <strong id="recordingPathHelpTitle">📋 如何获取录制路径：</strong><br>
+                    <span id="recordingPathHelp1">1. 在 Wwise 中打开 Master Bus → Effect Chain → Recorder 插件</span><br>
+                    <span id="recordingPathHelp2">2. 在 "Authoring Tool Output Path" 中设置路径</span><br>
+                    <span id="recordingPathHelp3">3. 确保文件名使用 "Record.wav"</span><br>
+                    <span id="recordingPathHelp4">4. 将完整路径复制到上方输入框（例如：C:\Users\...\Record.wav）</span><br>
+                    <strong id="recordingPathHelpNote">注意：工具会在录制完成后自动将 Record.wav 重命名为对应对象名称</strong>
                 </div>
                 <div class="tool-controls" style="margin-top: 15px;">
                     <button class="btn-primary" id="startRecordingBtn">开始录制</button>
@@ -951,10 +1178,16 @@
                 emptyState.textContent = typeof t === 'function' ? t('audioRecording.emptyState') : '请点击"开始录制"按钮';
             }
             
-            // 更新路径显示
-            const pathDisplay = document.getElementById('recordingPathDisplay');
-            if (pathDisplay && !recordingPath) {
-                pathDisplay.textContent = typeof t === 'function' ? t('audioRecording.pathPlaceholder') : '未设置录制路径';
+            // 更新路径输入框占位符
+            const pathInput = document.getElementById('recordingPathInput');
+            if (pathInput) {
+                pathInput.placeholder = typeof t === 'function' ? t('audioRecording.pathPlaceholder') : '从 Wwise Recorder 插件复制路径...';
+            }
+            
+            // 更新路径标签
+            const pathLabel = document.getElementById('recordingPathLabel');
+            if (pathLabel) {
+                pathLabel.textContent = typeof t === 'function' ? t('audioRecording.pathLabel') : '录制路径:';
             }
         }
         
@@ -2121,7 +2354,7 @@
         let recordedFiles = [];
         let isRecording = false;
         const selectRecordingPathBtn = document.getElementById('selectRecordingPathBtn');
-        const recordingPathDisplay = document.getElementById('recordingPathDisplay');
+        const recordingPathInput = document.getElementById('recordingPathInput');
         const recordingPathHelpBtn = document.getElementById('recordingPathHelpBtn');
         const recordingPathHelpText = document.getElementById('recordingPathHelpText');
         const recordingModeRadios = document.querySelectorAll('input[name="recordingMode"]');
@@ -2136,6 +2369,21 @@
         const recordingResultsBody = document.getElementById('recordingResultsBody');
         const openRecordingFolderBtn = document.getElementById('openRecordingFolderBtn');
 
+        // 监听路径输入变化
+        recordingPathInput.addEventListener('input', () => {
+            const path = recordingPathInput.value.trim();
+            recordingPath = path || null;
+            if (path) {
+                if (!path.endsWith('Record.wav')) {
+                    recordingPathInput.style.borderColor = '#ffc107';
+                } else {
+                    recordingPathInput.style.borderColor = '#28a745';
+                }
+            } else {
+                recordingPathInput.style.borderColor = '';
+            }
+        });
+
         // 选择录制路径
         selectRecordingPathBtn.addEventListener('click', async () => {
             try {
@@ -2143,7 +2391,8 @@
                 if (!result.canceled && result.success) {
                     recordingPath = result.path;
                     recordingDir = result.directory;
-                    recordingPathDisplay.textContent = result.path;
+                    recordingPathInput.value = result.path;
+                    recordingPathInput.style.borderColor = '#28a745';
                 }
             } catch (error) {
                 alert('选择路径失败: ' + error.message);
@@ -2190,7 +2439,7 @@
             if (!finalPath.endsWith('Record.wav')) {
                 dirPath = finalPath;
                 finalPath = path.join(dirPath, 'Record.wav');
-                recordingPathDisplay.textContent = finalPath;
+                recordingPathInput.value = finalPath;
             }
 
             // 验证目录是否存在

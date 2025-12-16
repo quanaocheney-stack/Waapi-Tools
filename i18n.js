@@ -166,8 +166,9 @@ const i18n = {
         },
         audioRecording: {
             info: '录制Wwise中选中的音频对象。支持自动模式（播放完成后自动停止）和手动模式（指定录制时长）。',
-            pathPlaceholder: '未设置录制路径',
-            selectPathBtn: '选择路径',
+            pathLabel: '录制路径:',
+            pathPlaceholder: '从Recorder 插件复制路径...',
+            selectPathBtn: '选择',
             recordingModeLabel: '录制模式:',
             recordingModeAuto: '自动',
             recordingModeManual: '手动',
@@ -385,8 +386,9 @@ const i18n = {
         },
         audioRecording: {
             info: 'Record selected audio objects in Wwise. Supports auto mode (auto stop after playback) and manual mode (specified recording duration).',
-            pathPlaceholder: 'Recording path not set',
-            selectPathBtn: 'Select Path',
+            pathLabel: 'Recording Path:',
+            pathPlaceholder: 'Copy path from Wwise Recorder plugin...',
+            selectPathBtn: 'Select',
             recordingModeLabel: 'Recording Mode:',
             recordingModeAuto: 'Auto',
             recordingModeManual: 'Manual',
