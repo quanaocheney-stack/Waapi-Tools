@@ -2,6 +2,7 @@ const autobahn = require('autobahn');
 const ak = require('./waapi.js').ak;
 const fs = require('fs');
 const path = require('path');
+const WwiseRecorder = require('./wwise-recorder');
 
 // ==================== 辅助函数 ====================
 
@@ -1118,6 +1119,464 @@ async function removeUnusedWavsExecute(results) {
     }
 }
 
+/**
+ * 延迟函数
+ */
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * 执行 Wwise 命令
+ */
+async function executeCommand(session, command) {
+    try {
+        await session.call(ak.wwise.ui.commands.execute, [], { command });
+    } catch (error) {
+        console.log(`执行命令 ${command} 失败: ${error.error}`);
+        throw error;
+    }
+}
+
+/**
+ * 注册游戏对象和监听器
+ */
+async function addListener(session, gameObjectId = 1) {
+    try {
+        await session.call(ak.soundengine.registerGameObj, [], {
+            gameObject: gameObjectId,
+            name: "Default Listener"
+        });
+        await session.call(ak.soundengine.setDefaultListeners, [], {
+            listeners: [gameObjectId]
+        });
+        console.log(`✓ 已注册游戏对象 ${gameObjectId}`);
+        return gameObjectId;
+    } catch (error) {
+        console.log(`注册游戏对象失败: ${error.error}`);
+        throw error;
+    }
+}
+
+/**
+ * 播放事件
+ */
+async function playSound(session, event, gameObjectId = 1) {
+    try {
+        await session.call(ak.soundengine.postEvent, [], {
+            event: event.id,
+            gameObject: gameObjectId
+        });
+        console.log(`✓ 已播放: ${event.name || event.SoundName} (ID: ${event.id})`);
+    } catch (error) {
+        console.log(`播放失败: ${error.error}`);
+        throw error;
+    }
+}
+
+/**
+ * 停止所有声音
+ */
+async function stopAll(session, gameObjectId = 1) {
+    try {
+        await session.call(ak.soundengine.stopAll, [], { gameObject: gameObjectId });
+    } catch (error) {
+        console.log(`停止失败: ${error.error}`);
+    }
+}
+
+/**
+ * 获取选中的对象（录制专用）
+ */
+async function getSelectedObjectsForRecording(session) {
+    try {
+        // 先尝试使用 return 参数（新版本）
+        let result;
+        try {
+            result = await session.call(ak.wwise.ui.getSelectedObjects, [], {}, {
+                return: ['name', 'id', 'type', 'path', 'playbackDuration']
+            });
+        } catch (returnError) {
+            // 如果 return 参数不被支持（旧版本如2019），尝试不使用 return
+            if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                returnError.error === 'ak.wwise.schema_validation_failed') {
+                result = await session.call(ak.wwise.ui.getSelectedObjects, [], {});
+            } else {
+                throw returnError;
+            }
+        }
+        
+        const objects = result.kwargs?.objects || result.objects || [];
+        for (let obj of objects) {
+            if (obj.playbackDuration) {
+                obj.Duration = Math.min(30.0, obj.playbackDuration.playbackDurationMax || 10.0);
+            } else {
+                obj.Duration = 10.0;
+            }
+        }
+        return objects;
+    } catch (error) {
+        console.log(`获取选中对象失败: ${error.error}`);
+        throw error;
+    }
+}
+
+/**
+ * 筛选音频对象
+ */
+async function filterSoundObjects(session, objects) {
+    const audioQueryArgs = `select descendants where parent.type = "ActorMixer" and type != "ActorMixer"`;
+    const eventQueryArgs = `select descendants where type = "event"`;
+    const resFilteredOptns = {
+        return: ['name', 'id', 'type', 'path', 'playbackDuration']
+    };
+
+    let filteredObjects = [];
+    for (let obj of objects) {
+        switch (obj.type) {
+            case 'ActorMixer':
+            case 'WorkUnit':
+            case 'Folder':
+                const waql = `"${obj.id}"` + eventQueryArgs;
+                let events;
+                try {
+                    events = await session.call(ak.wwise.core.object.get, [], {
+                        waql: waql
+                    }, resFilteredOptns);
+                } catch (returnError) {
+                    if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                        returnError.error === 'ak.wwise.schema_validation_failed') {
+                        events = await session.call(ak.wwise.core.object.get, [], {
+                            waql: waql
+                        });
+                    } else {
+                        throw returnError;
+                    }
+                }
+                if (events.kwargs?.return && events.kwargs.return.length > 0) {
+                    filteredObjects = filteredObjects.concat(events.kwargs.return);
+                } else {
+                    const audioWaql = `"${obj.id}"` + audioQueryArgs;
+                    let audios;
+                    try {
+                        audios = await session.call(ak.wwise.core.object.get, [], {
+                            waql: audioWaql
+                        }, resFilteredOptns);
+                    } catch (returnError) {
+                        if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                            returnError.error === 'ak.wwise.schema_validation_failed') {
+                            audios = await session.call(ak.wwise.core.object.get, [], {
+                                waql: audioWaql
+                            });
+                        } else {
+                            throw returnError;
+                        }
+                    }
+                    if (audios.kwargs?.return) {
+                        filteredObjects = filteredObjects.concat(audios.kwargs.return);
+                    }
+                }
+                break;
+            case 'Sound':
+            case 'Event':
+            case 'BlendContainer':
+            case 'RandomSequenceContainer':
+                filteredObjects.push(obj);
+                break;
+        }
+    }
+
+    // 设置时长
+    for (let obj of filteredObjects) {
+        if (obj.playbackDuration) {
+            obj.Duration = Math.min(30.0, obj.playbackDuration.playbackDurationMax || 10.0);
+        } else {
+            obj.Duration = 10.0;
+        }
+    }
+
+    return filteredObjects;
+}
+
+/**
+ * 创建评估事件
+ */
+async function createEvaluateEvent(session, soundObject) {
+    try {
+        // 确保 AutoEvaluate_Events 文件夹存在
+        try {
+            await session.call('ak.wwise.core.object.create', [], {
+                parent: '\\Events\\Default Work Unit',
+                type: 'Folder',
+                name: 'AutoEvaluate_Events',
+                onNameConflict: 'merge'
+            });
+        } catch (e) {
+            // 文件夹已存在，忽略
+        }
+
+        const createEventResult = await session.call('ak.wwise.core.object.create', [], {
+            parent: '\\Events\\Default Work Unit\\AutoEvaluate_Events',
+            type: 'Event',
+            name: `Play_Evaluate_`,
+            onNameConflict: 'rename',
+            children: [{
+                type: 'Action',
+                name: 'play',
+                '@ActionType': 1,
+                '@Target': soundObject.path
+            }]
+        });
+
+        const resObject = createEventResult.kwargs;
+        resObject.Duration = Math.min(30.0, soundObject.playbackDuration?.playbackDurationMax || 10.0);
+        resObject.SoundId = soundObject.id;
+        resObject.SoundName = soundObject.name;
+        return resObject;
+    } catch (error) {
+        console.error('创建事件失败:', error);
+        throw error;
+    }
+}
+
+/**
+ * 创建评估事件列表
+ */
+async function createEvaluateEvents(session, soundObjects) {
+    let eventList = [];
+    for (let element of soundObjects) {
+        if (element.type === 'Event') {
+            eventList.push(element);
+        } else {
+            const event = await createEvaluateEvent(session, element);
+            eventList.push(event);
+        }
+    }
+    return eventList;
+}
+
+/**
+ * 清理临时事件
+ */
+async function cleanTestEvents(session) {
+    try {
+        const waql = `"\\Events\\Default Work Unit\\AutoEvaluate_Events" select descendants where type = "event"`;
+        let events;
+        try {
+            events = await session.call(ak.wwise.core.object.get, [], {
+                waql: waql
+            }, {
+                return: ['id']
+            });
+        } catch (returnError) {
+            if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                returnError.error === 'ak.wwise.schema_validation_failed') {
+                events = await session.call(ak.wwise.core.object.get, [], {
+                    waql: waql
+                });
+            } else {
+                throw returnError;
+            }
+        }
+        
+        const eventList = events.kwargs?.return || events.return || [];
+        if (eventList.length > 0) {
+            for (let evt of eventList) {
+                await session.call(ak.wwise.core.object.delete, [], { object: evt.id });
+            }
+        }
+        console.log('✓ 临时事件已清理');
+    } catch (error) {
+        console.log(`清理临时事件失败: ${error.error}`);
+    }
+}
+
+/**
+ * 录制音频（支持循环和时长设定）
+ */
+async function recordAudio(session, events, options = {}) {
+    const {
+        recordingPath,
+        recordingMode = 'auto', // 'auto' 或 'manual'
+        recordDuration = null, // 录制时长（秒），手动模式下有效
+        progressCallback = null,
+        recordedFiles = null // 用于收集录制的文件路径
+    } = options;
+
+    if (!recordingPath) {
+        throw new Error('录制路径未设置');
+    }
+
+    // 初始化 Recorder
+    const recorder = new WwiseRecorder();
+    recorder.setRecordingPath(recordingPath);
+
+    if (progressCallback) {
+        progressCallback({ type: 'log', logType: 'info', message: `开始录制，共 ${events.length} 个对象` });
+    }
+
+    for (let i = 0; i < events.length; i++) {
+        const element = events[i];
+        const itemName = element.SoundName || element.name;
+        
+        if (progressCallback) {
+            progressCallback({
+                type: 'progress',
+                current: i + 1,
+                total: events.length,
+                item: itemName,
+                message: `正在录制: ${itemName}`
+            });
+            progressCallback({ type: 'log', logType: 'info', message: `[${i + 1}/${events.length}] 录制: ${itemName}` });
+        }
+
+        try {
+            // 开始录制（每次录制前重新设置路径，因为文件会被重命名）
+            const currentRecordingPath = path.join(path.dirname(recordingPath), 'Record.wav');
+            recorder.setRecordingPath(currentRecordingPath);
+
+            if (recordingMode === 'manual' && recordDuration && recordDuration > 0) {
+                // 手动模式：播放一次，然后等待指定时长才停止
+                await playSound(session, element);
+                
+                if (progressCallback) {
+                    progressCallback({ type: 'log', logType: 'info', message: `  手动模式，等待录制时长: ${recordDuration} 秒` });
+                }
+                
+                // 等待指定时长（不会自动停止，必须等到时间）
+                await delay(recordDuration * 1000);
+            } else {
+                // 自动模式：播放完成后自动停止
+                await playSound(session, element);
+                
+                if (progressCallback) {
+                    progressCallback({ type: 'log', logType: 'info', message: `  自动模式，等待播放完成` });
+                }
+                
+                // 等待播放完成
+                await delay(element.Duration * 1000);
+            }
+
+            // 停止当前播放
+            await stopAll(session);
+            
+            // 等待0.5秒，确保文件完全保存，避免文件被占用
+            await delay(500);
+            
+            // 重命名录制文件
+            if (fs.existsSync(recorder.recordingPath)) {
+                const renamedPath = recorder.renameRecordingFile(itemName);
+                // 收集文件路径
+                if (options.recordedFiles) {
+                    options.recordedFiles.push(renamedPath);
+                }
+                // 发送文件路径到前端
+                if (progressCallback) {
+                    progressCallback({ type: 'log', logType: 'success', message: `✓ 录制完成: ${path.basename(renamedPath)}` });
+                    progressCallback({ type: 'file', filePath: renamedPath });
+                }
+            } else {
+                if (progressCallback) {
+                    progressCallback({ type: 'log', logType: 'warning', message: `⚠️ 录制文件未找到: ${recorder.recordingPath}` });
+                }
+            }
+            
+            // 再等待0.1秒后播放下一个对象（总共间隔0.6秒）
+            await delay(100);
+        } catch (error) {
+            if (progressCallback) {
+                progressCallback({ type: 'log', logType: 'error', message: `❌ 录制失败: ${error.message}` });
+            }
+            await stopAll(session);
+            // 错误时也等待0.6秒再继续下一个
+            await delay(600);
+        }
+    }
+
+    if (progressCallback) {
+        progressCallback({ type: 'log', logType: 'success', message: '✓ 所有录制完成' });
+    }
+}
+
+/**
+ * 运行录制流程
+ */
+async function runRecording(port, options = {}) {
+    const {
+        recordingPath,
+        recordingMode = 'auto', // 'auto' 或 'manual'
+        recordDuration = null,
+        progressCallback = null
+    } = options;
+
+    let connection = null;
+    let session = null;
+    const recordedFiles = []; // 收集录制的文件路径
+
+    try {
+        // 创建连接
+        const { session: sess, connection: conn } = await createConnection(port);
+        session = sess;
+        connection = conn;
+
+        if (progressCallback) {
+            progressCallback({ type: 'log', logType: 'success', message: '✓ 已连接到 Wwise' });
+        }
+
+        // 获取选中的对象
+        const selectedObjects = await getSelectedObjectsForRecording(session);
+        if (selectedObjects.length === 0) {
+            throw new Error('请在 Wwise 中选择要录制的对象');
+        }
+
+        // 筛选音频对象
+        const filteredObjects = await filterSoundObjects(session, selectedObjects);
+        if (filteredObjects.length === 0) {
+            throw new Error('没有找到可录制的音频对象');
+        }
+
+        if (progressCallback) {
+            progressCallback({ type: 'log', logType: 'info', message: `找到 ${filteredObjects.length} 个音频对象` });
+        }
+
+        // 创建评估事件
+        const evaluateEvents = await createEvaluateEvents(session, filteredObjects);
+
+        // 准备播放
+        await addListener(session);
+
+        // 开始录制（传递文件收集数组）
+        await recordAudio(session, evaluateEvents, {
+            recordingPath,
+            recordingMode,
+            recordDuration,
+            progressCallback,
+            recordedFiles // 传递文件数组用于收集
+        });
+
+        // 清理临时事件
+        await cleanTestEvents(session);
+
+        if (connection && connection.isConnected) {
+            connection.close();
+        }
+
+        return { 
+            success: true, 
+            count: evaluateEvents.length,
+            files: recordedFiles // 返回录制的文件列表
+        };
+    } catch (error) {
+        if (progressCallback) {
+            progressCallback({ type: 'log', logType: 'error', message: `❌ 错误: ${error.message}` });
+        }
+        if (connection && connection.isConnected) {
+            connection.close();
+        }
+        return { success: false, error: error.message, files: recordedFiles };
+    }
+}
+
 module.exports = {
     testConnection,
     getOriginalsPath,
@@ -1131,6 +1590,7 @@ module.exports = {
     removeUnusedWavsExecute,
     locateObject,
     showListView,
-    showMultiEditor
+    showMultiEditor,
+    runRecording
 };
 

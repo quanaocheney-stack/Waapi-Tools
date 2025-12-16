@@ -524,6 +524,35 @@
             cursor: not-allowed;
             transform: none;
         }
+
+        .progress-bar {
+            height: 6px;
+            background: var(--bg-secondary);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-color);
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        .help-text {
+            font-size: 11px;
+            color: #856404;
+            background: #fff3cd;
+            padding: 8px;
+            border-radius: 6px;
+            border-left: 4px solid #ffc107;
+            margin-top: 5px;
+            line-height: 1.5;
+        }
+
+        .help-text strong {
+            color: #856404;
+        }
     </style>
 </head>
 <body>
@@ -545,10 +574,88 @@
         </div>
 
         <div class="tabs">
+            <button class="tab" data-tab="audio-recording">音频录制</button>
             <button class="tab active" data-tab="reset-faders">重置音量推子</button>
             <button class="tab" data-tab="delete-events">删除无效Event</button>
             <button class="tab" data-tab="set-streaming">设置流播放</button>
             <button class="tab" data-tab="remove-wavs">删除未使用WAV</button>
+        </div>
+
+        <!-- 音频录制标签 -->
+        <div class="tab-content" id="audio-recording-tab">
+            <div class="info-box" id="audioRecordingInfoBox">
+                录制Wwise中选中的音频对象。支持自动模式（播放完成后自动停止）和手动模式（指定录制时长）。
+            </div>
+            <div class="tool-panel">
+                <div class="tool-controls">
+                    <div class="path-display" style="flex: 1;">
+                        <span id="recordingPathDisplay">未设置录制路径</span>
+                        <button class="btn-primary" id="selectRecordingPathBtn" style="padding: 6px 12px; font-size: 12px;">选择路径</button>
+                        <button class="btn-secondary" id="recordingPathHelpBtn" style="padding: 6px 10px; font-size: 12px;" title="如何获取录制路径">?</button>
+                    </div>
+                </div>
+                <div class="help-text" id="recordingPathHelpText" style="display: none; margin-top: 10px; padding: 8px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; font-size: 12px; color: #856404;">
+                    <strong id="recordingPathHelpTitle">📋 如何获取录制路径：</strong><br>
+                    <span id="recordingPathHelp1">1. 在 Wwise 中打开 Master Bus → Effect Chain → Recorder 插件</span><br>
+                    <span id="recordingPathHelp2">2. 在 "Authoring Tool Output Path" 中设置路径</span><br>
+                    <span id="recordingPathHelp3">3. 确保文件名使用 "Record.wav"</span><br>
+                    <span id="recordingPathHelp4">4. 将完整路径复制到上方输入框（例如：C:\Users\...\Record.wav）</span><br>
+                    <strong id="recordingPathHelpNote">注意：工具会在录制完成后自动将 Record.wav 重命名为对应对象名称</strong>
+                </div>
+                <div class="tool-controls" style="margin-top: 15px;">
+                    <div class="input-group">
+                        <label id="recordingModeLabel">录制模式:</label>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="recordingMode" value="auto" checked>
+                                <span id="recordingModeAuto">自动</span>
+                            </label>
+                            <label>
+                                <input type="radio" name="recordingMode" value="manual">
+                                <span id="recordingModeManual">手动</span>
+                            </label>
+                        </div>
+                        <span id="recordingModeHint" style="font-size: 12px; color: var(--text-secondary); margin-left: 10px;">播放完成后自动停止</span>
+                    </div>
+                    <div class="input-group" id="recordingDurationGroup" style="display: none;">
+                        <label id="recordingDurationLabel">录制时长:</label>
+                        <input type="number" id="recordingDurationInput" value="10" min="1" max="3600" step="1" style="width: 80px;">
+                        <span id="recordingDurationUnit" style="font-size: 13px;">秒</span>
+                    </div>
+                </div>
+                <div class="tool-controls" style="margin-top: 15px;">
+                    <button class="btn-primary" id="startRecordingBtn">开始录制</button>
+                    <button class="btn-danger" id="stopRecordingBtn" disabled>停止</button>
+                </div>
+            </div>
+            <div class="results-container" style="margin-top: 15px;">
+                <div class="results-header">
+                    <span class="results-title" id="recordingStatusTitle">录制状态</span>
+                    <div class="results-header-actions">
+                        <span class="results-count" id="recordingProgressText" style="background: transparent; color: var(--text-secondary);">就绪</span>
+                        <button class="btn-primary" id="openRecordingFolderBtn" style="display: none; padding: 6px 12px; font-size: 12px;">📂 打开文件夹</button>
+                    </div>
+                </div>
+                <div class="progress-bar" id="recordingProgressBar" style="display: none; margin: 10px 15px;">
+                    <div class="progress-fill" id="recordingProgressFill"></div>
+                </div>
+                <div class="results-table" style="max-height: 300px; overflow-y: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th id="recordingThIndex" style="width: 60px;">序号</th>
+                                <th id="recordingThFileName">文件名</th>
+                                <th id="recordingThActions" style="width: 100px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordingResultsBody">
+                            <tr>
+                                <td colspan="3" class="empty-state" id="recordingEmptyState"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <!-- 重置音量推子标签 -->
@@ -766,7 +873,7 @@
             // 更新标签页
             const tabs = document.querySelectorAll('.tab');
             tabs.forEach((tab, index) => {
-                const tabKeys = ['tabs.resetFaders', 'tabs.deleteEvents', 'tabs.setStreaming', 'tabs.removeWavs'];
+                const tabKeys = ['tabs.audioRecording', 'tabs.resetFaders', 'tabs.deleteEvents', 'tabs.setStreaming', 'tabs.removeWavs'];
                 if (tabKeys[index]) {
                     tab.textContent = t(tabKeys[index]);
                 }
@@ -776,10 +883,79 @@
             updateStatusText();
             
             // 更新各个功能模块的文本
+            updateAudioRecordingTexts();
             updateResetFadersTexts();
             updateDeleteEventsTexts();
             updateSetStreamingTexts();
             updateRemoveWavsTexts();
+        }
+        
+        // 更新音频录制相关文本
+        function updateAudioRecordingTexts() {
+            if (typeof t !== 'function') return;
+            const infoBox = document.getElementById('audioRecordingInfoBox');
+            if (infoBox) infoBox.textContent = t('audioRecording.info');
+            
+            const selectPathBtn = document.getElementById('selectRecordingPathBtn');
+            if (selectPathBtn) selectPathBtn.textContent = t('audioRecording.selectPathBtn');
+            
+            const recordingModeLabel = document.getElementById('recordingModeLabel');
+            if (recordingModeLabel) recordingModeLabel.textContent = t('audioRecording.recordingModeLabel');
+            
+            const recordingModeAuto = document.getElementById('recordingModeAuto');
+            if (recordingModeAuto) recordingModeAuto.textContent = t('audioRecording.recordingModeAuto');
+            
+            const recordingModeManual = document.getElementById('recordingModeManual');
+            if (recordingModeManual) recordingModeManual.textContent = t('audioRecording.recordingModeManual');
+            
+            const recordingDurationLabel = document.getElementById('recordingDurationLabel');
+            if (recordingDurationLabel) recordingDurationLabel.textContent = t('audioRecording.recordingDurationLabel');
+            
+            const recordingDurationUnit = document.getElementById('recordingDurationUnit');
+            if (recordingDurationUnit) recordingDurationUnit.textContent = t('audioRecording.recordingDurationUnit');
+            
+            const startBtn = document.getElementById('startRecordingBtn');
+            if (startBtn && !startBtn.disabled && !startBtn.textContent.includes('...')) startBtn.textContent = t('audioRecording.startBtn');
+            
+            const stopBtn = document.getElementById('stopRecordingBtn');
+            if (stopBtn && !stopBtn.disabled && !stopBtn.textContent.includes('...')) stopBtn.textContent = t('audioRecording.stopBtn');
+            
+            // 更新模式提示
+            const recordingModeHint = document.getElementById('recordingModeHint');
+            if (recordingModeHint) {
+                const selectedMode = document.querySelector('input[name="recordingMode"]:checked');
+                if (selectedMode && selectedMode.value === 'manual') {
+                    recordingModeHint.textContent = t('audioRecording.manualModeHint');
+                } else {
+                    recordingModeHint.textContent = t('audioRecording.autoModeHint');
+                }
+            }
+            
+            // 更新路径帮助文本
+            const pathHelpTitle = document.getElementById('recordingPathHelpTitle');
+            if (pathHelpTitle) pathHelpTitle.textContent = t('audioRecording.pathHelpTitle');
+            const pathHelp1 = document.getElementById('recordingPathHelp1');
+            if (pathHelp1) pathHelp1.textContent = t('audioRecording.pathHelp1');
+            const pathHelp2 = document.getElementById('recordingPathHelp2');
+            if (pathHelp2) pathHelp2.textContent = t('audioRecording.pathHelp2');
+            const pathHelp3 = document.getElementById('recordingPathHelp3');
+            if (pathHelp3) pathHelp3.textContent = t('audioRecording.pathHelp3');
+            const pathHelp4 = document.getElementById('recordingPathHelp4');
+            if (pathHelp4) pathHelp4.textContent = t('audioRecording.pathHelp4');
+            const pathHelpNote = document.getElementById('recordingPathHelpNote');
+            if (pathHelpNote) pathHelpNote.textContent = t('audioRecording.pathHelpNote');
+            
+            // 更新空状态文本
+            const emptyState = document.getElementById('recordingEmptyState');
+            if (emptyState && (!recordedFiles || recordedFiles.length === 0)) {
+                emptyState.textContent = typeof t === 'function' ? t('audioRecording.emptyState') : '请点击"开始录制"按钮';
+            }
+            
+            // 更新路径显示
+            const pathDisplay = document.getElementById('recordingPathDisplay');
+            if (pathDisplay && !recordingPath) {
+                pathDisplay.textContent = typeof t === 'function' ? t('audioRecording.pathPlaceholder') : '未设置录制路径';
+            }
         }
         
         // 更新状态文本
@@ -1938,6 +2114,219 @@
                 }
             }
         })();
+
+        // 音频录制功能
+        let recordingPath = null;
+        let recordingDir = null;
+        let recordedFiles = [];
+        let isRecording = false;
+        const selectRecordingPathBtn = document.getElementById('selectRecordingPathBtn');
+        const recordingPathDisplay = document.getElementById('recordingPathDisplay');
+        const recordingPathHelpBtn = document.getElementById('recordingPathHelpBtn');
+        const recordingPathHelpText = document.getElementById('recordingPathHelpText');
+        const recordingModeRadios = document.querySelectorAll('input[name="recordingMode"]');
+        const recordingModeHint = document.getElementById('recordingModeHint');
+        const recordingDurationGroup = document.getElementById('recordingDurationGroup');
+        const recordingDurationInput = document.getElementById('recordingDurationInput');
+        const startRecordingBtn = document.getElementById('startRecordingBtn');
+        const stopRecordingBtn = document.getElementById('stopRecordingBtn');
+        const recordingProgressText = document.getElementById('recordingProgressText');
+        const recordingProgressBar = document.getElementById('recordingProgressBar');
+        const recordingProgressFill = document.getElementById('recordingProgressFill');
+        const recordingResultsBody = document.getElementById('recordingResultsBody');
+        const openRecordingFolderBtn = document.getElementById('openRecordingFolderBtn');
+
+        // 选择录制路径
+        selectRecordingPathBtn.addEventListener('click', async () => {
+            try {
+                const result = await ipcRenderer.invoke('waapi-select-recording-path');
+                if (!result.canceled && result.success) {
+                    recordingPath = result.path;
+                    recordingDir = result.directory;
+                    recordingPathDisplay.textContent = result.path;
+                }
+            } catch (error) {
+                alert('选择路径失败: ' + error.message);
+            }
+        });
+
+        // 路径帮助按钮
+        recordingPathHelpBtn.addEventListener('click', () => {
+            recordingPathHelpText.style.display = recordingPathHelpText.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // 录制模式切换
+        recordingModeRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (radio.value === 'manual') {
+                    recordingDurationGroup.style.display = 'flex';
+                    recordingModeHint.textContent = typeof t === 'function' ? t('audioRecording.manualModeHint') : '持续录制到指定时长才停止';
+                } else {
+                    recordingDurationGroup.style.display = 'none';
+                    recordingModeHint.textContent = typeof t === 'function' ? t('audioRecording.autoModeHint') : '播放完成后自动停止';
+                }
+            });
+        });
+
+        // 开始录制
+        startRecordingBtn.addEventListener('click', async () => {
+            if (!recordingPath) {
+                alert(typeof t === 'function' ? t('audioRecording.alertNoPath') : '请先设置录制路径');
+                return;
+            }
+
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('audioRecording.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+
+            const fs = require('fs');
+            const path = require('path');
+            
+            // 验证路径
+            let finalPath = recordingPath;
+            let dirPath = path.dirname(finalPath);
+            
+            if (!finalPath.endsWith('Record.wav')) {
+                dirPath = finalPath;
+                finalPath = path.join(dirPath, 'Record.wav');
+                recordingPathDisplay.textContent = finalPath;
+            }
+
+            // 验证目录是否存在
+            if (!fs.existsSync(dirPath)) {
+                alert(typeof t === 'function' ? t('audioRecording.alertPathNotExist') : `录制路径不存在: ${dirPath}`);
+                return;
+            }
+
+            // 验证目录是否可写
+            try {
+                const testFile = path.join(dirPath, '.waapi_recorder_test');
+                fs.writeFileSync(testFile, 'test');
+                fs.unlinkSync(testFile);
+            } catch (error) {
+                alert(typeof t === 'function' ? t('audioRecording.alertPathNotWritable') : `录制路径不可写: ${dirPath}`);
+                return;
+            }
+
+            recordingPath = finalPath;
+            recordingDir = dirPath;
+
+            const port = parseInt(portInput.value) || 8080;
+            const recordingMode = document.querySelector('input[name="recordingMode"]:checked').value;
+            const recordDuration = recordingMode === 'manual' ? parseFloat(recordingDurationInput.value) : null;
+
+            if (recordingMode === 'manual' && (!recordDuration || recordDuration < 1 || recordDuration > 3600)) {
+                alert(typeof t === 'function' ? t('audioRecording.alertInvalidDuration') : '请输入有效的录制时长（1-3600秒）');
+                return;
+            }
+
+            isRecording = true;
+            startRecordingBtn.disabled = true;
+            stopRecordingBtn.disabled = false;
+            recordingProgressText.textContent = typeof t === 'function' ? t('audioRecording.recording') : '正在录制...';
+            recordingProgressBar.style.display = 'block';
+            recordingProgressFill.style.width = '0%';
+            recordedFiles = [];
+            recordingResultsBody.innerHTML = '';
+            openRecordingFolderBtn.style.display = 'none';
+
+            try {
+                const result = await ipcRenderer.invoke('waapi-start-recording', port, recordingPath, recordingMode, recordDuration);
+                if (result.success) {
+                    recordingProgressText.textContent = typeof t === 'function' ? t('audioRecording.complete', { count: result.count }) : `录制完成 - 共 ${result.count} 个对象`;
+                    if (result.files && result.files.length > 0) {
+                        recordedFiles = result.files;
+                        displayRecordingResults(result.files);
+                    }
+                } else {
+                    recordingProgressText.textContent = typeof t === 'function' ? t('audioRecording.failed') : '录制失败';
+                    alert((typeof t === 'function' ? t('audioRecording.alertFailed') : '录制失败') + ': ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                recordingProgressText.textContent = typeof t === 'function' ? t('audioRecording.failed') : '录制失败';
+                alert((typeof t === 'function' ? t('audioRecording.alertFailed') : '录制失败') + ': ' + error.message);
+            } finally {
+                isRecording = false;
+                startRecordingBtn.disabled = false;
+                stopRecordingBtn.disabled = true;
+                recordingProgressBar.style.display = 'none';
+            }
+        });
+
+        // 停止录制
+        stopRecordingBtn.addEventListener('click', async () => {
+            // 停止功能可以在这里实现，目前录制是自动完成的
+            isRecording = false;
+            startRecordingBtn.disabled = false;
+            stopRecordingBtn.disabled = true;
+            recordingProgressText.textContent = typeof t === 'function' ? t('audioRecording.stopped') : '录制已停止';
+        });
+
+        // 监听录制进度
+        ipcRenderer.on('recording-progress', (event, progress) => {
+            if (progress.type === 'progress') {
+                const percent = Math.round((progress.current / progress.total) * 100);
+                recordingProgressFill.style.width = percent + '%';
+                recordingProgressText.textContent = typeof t === 'function' ? 
+                    t('audioRecording.recordingProgress', { current: progress.current, total: progress.total, item: progress.item }) :
+                    `正在录制: ${progress.item} (${progress.current}/${progress.total})`;
+            } else if (progress.type === 'file') {
+                if (progress.filePath && !recordedFiles.includes(progress.filePath)) {
+                    recordedFiles.push(progress.filePath);
+                }
+            }
+        });
+
+        // 监听录制完成事件
+        ipcRenderer.on('recording-complete', (event, data) => {
+            if (data.files && data.files.length > 0) {
+                recordedFiles = data.files;
+                displayRecordingResults(data.files);
+            }
+        });
+
+        // 显示录制结果
+        function displayRecordingResults(files) {
+            recordingResultsBody.innerHTML = files.map((filePath, index) => {
+                const path = require('path');
+                const fileName = path.basename(filePath);
+                return `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td style="font-family: monospace; font-size: 12px;" title="${filePath}">${fileName}</td>
+                        <td>
+                            <button class="btn-success" onclick="openRecordingFile('${filePath.replace(/\\/g, '\\\\')}')" style="padding: 4px 8px; font-size: 12px;">
+                                ${typeof t === 'function' ? t('audioRecording.openFile') : '打开文件'}
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            openRecordingFolderBtn.style.display = 'inline-block';
+        }
+
+        // 打开录制文件
+        window.openRecordingFile = async (filePath) => {
+            try {
+                await ipcRenderer.invoke('waapi-open-file', filePath);
+            } catch (error) {
+                alert('打开文件失败: ' + error.message);
+            }
+        };
+
+        // 打开录制文件夹
+        openRecordingFolderBtn.addEventListener('click', async () => {
+            if (!recordingDir) {
+                alert(typeof t === 'function' ? t('audioRecording.alertNoFolder') : '录制目录路径不存在');
+                return;
+            }
+            try {
+                await ipcRenderer.invoke('waapi-open-folder', recordingDir);
+            } catch (error) {
+                alert('打开文件夹失败: ' + error.message);
+            }
+        });
 
     </script>
 </body>
