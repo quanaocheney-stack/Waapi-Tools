@@ -97,9 +97,9 @@ const i18n = {
             defaultReason: '所有Action都引用不存在的对象'
         },
         setStreaming: {
-            info: '检测选中容器下的所有Sound对象，为时长超过阈值的对象设置流播放属性。',
+            info: '检测选中的对象（Sound、MusicTrack等）或容器下的所有Sound和音乐对象（MusicSegment、MusicPlaylistContainer、MusicSwitchContainer、MusicTrack），为时长超过阈值的对象设置流播放属性。',
             thresholdLabel: '时长阈值（秒）',
-            scanBtn: '检测选中容器',
+            scanBtn: '检测选中对象',
             scanBtnScanning: '检测中...',
             scanSuccess: '检测完成',
             scanNoResults: '检测完成：未找到满足条件的对象',
@@ -112,6 +112,7 @@ const i18n = {
                 locate: '定位',
                 index: '序号',
                 name: '对象名称',
+                type: '类型',
                 duration: '当前时长（秒）',
                 shouldSet: '满足条件',
                 currentStatus: '当前流播放状态'
@@ -317,9 +318,9 @@ const i18n = {
             defaultReason: 'All Actions reference non-existent objects'
         },
         setStreaming: {
-            info: 'Detect all Sound objects under the selected container and set streaming property for objects exceeding the duration threshold.',
+            info: 'Detect selected objects (Sound, MusicTrack, etc.) or all Sound and Music objects (MusicSegment, MusicPlaylistContainer, MusicSwitchContainer, MusicTrack) under the selected container and set streaming property for objects exceeding the duration threshold.',
             thresholdLabel: 'Duration Threshold (seconds)',
-            scanBtn: 'Scan Selected Container',
+            scanBtn: 'Scan Selected Objects',
             scanBtnScanning: 'Scanning...',
             scanSuccess: 'Scan completed',
             scanNoResults: 'Scan completed: No objects found that meet the criteria',
@@ -332,6 +333,7 @@ const i18n = {
                 locate: 'Locate',
                 index: 'No.',
                 name: 'Object Name',
+                type: 'Type',
                 duration: 'Duration (seconds)',
                 shouldSet: 'Meets Condition',
                 currentStatus: 'Current Streaming Status'
@@ -346,7 +348,7 @@ const i18n = {
             multiEditorSuccess: 'Shown in Multi Editor',
             multiEditorFailed: 'Failed to show in Multi Editor',
             multiEditorNoObjects: 'No valid object IDs',
-            emptyState: 'Please click "Scan Selected Container" button',
+            emptyState: 'Please click "Scan Selected Objects" button',
             confirmTitle: 'Confirm Set',
             confirmMessage: 'Are you sure you want to set streaming for {count} objects?',
             successMessage: 'Successfully set streaming for {count} objects',

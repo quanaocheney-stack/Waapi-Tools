@@ -428,6 +428,7 @@
         #setStreamingThLocate { width: 60px; min-width: 60px; }
         #setStreamingThIndex { width: 60px; min-width: 60px; }
         #setStreamingThName { width: 200px; min-width: 150px; }
+        #setStreamingThType { width: 150px; min-width: 120px; white-space: nowrap; }
         #setStreamingThDuration { width: 120px; min-width: 120px; white-space: nowrap; }
         #setStreamingThShouldSet { width: 90px; min-width: 90px; white-space: nowrap; }
         #setStreamingThStatus { width: 140px; min-width: 140px; white-space: nowrap; }
@@ -767,7 +768,7 @@
                         <label id="setStreamingThresholdLabel">时长阈值（秒）:</label>
                         <input type="number" id="streamingThreshold" value="10" min="0" step="0.1" style="width: 100px;">
                     </div>
-                    <button class="btn-primary" id="setStreamingScanBtn">检测选中容器</button>
+                    <button class="btn-primary" id="setStreamingScanBtn">检测选中对象</button>
                     <button class="btn-success" id="setStreamingConfirmBtn" style="display: none;">确认设置</button>
                 </div>
             </div>
@@ -788,6 +789,7 @@
                                 <th id="setStreamingThLocate">定位</th>
                                 <th id="setStreamingThIndex">序号</th>
                                 <th id="setStreamingThName">对象名称</th>
+                                <th id="setStreamingThType">类型</th>
                                 <th id="setStreamingThDuration">当前时长（秒）</th>
                                 <th id="setStreamingThShouldSet">满足条件</th>
                                 <th id="setStreamingThStatus">当前流播放状态</th>
@@ -795,7 +797,7 @@
                         </thead>
                         <tbody id="setStreamingBody">
                             <tr>
-                                <td colspan="6" class="empty-state" id="setStreamingEmptyState">请点击"检测选中容器"按钮</td>
+                                <td colspan="7" class="empty-state" id="setStreamingEmptyState">请点击"检测选中对象"按钮</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1086,6 +1088,8 @@
             if (thIndex) thIndex.textContent = t('setStreaming.tableHeaders.index');
             const thName = document.getElementById('setStreamingThName');
             if (thName) thName.textContent = t('setStreaming.tableHeaders.name');
+            const thType = document.getElementById('setStreamingThType');
+            if (thType) thType.textContent = t('setStreaming.tableHeaders.type');
             const thDuration = document.getElementById('setStreamingThDuration');
             if (thDuration) thDuration.textContent = t('setStreaming.tableHeaders.duration');
             const thShouldSet = document.getElementById('setStreamingThShouldSet');
@@ -1836,7 +1840,7 @@
                 alert((typeof t === 'function' ? t('setStreaming.alertScanFailed') : '检测失败') + ': ' + error.message);
             } finally {
                 setStreamingScanBtn.disabled = false;
-                setStreamingScanBtn.textContent = typeof t === 'function' ? t('setStreaming.scanBtn') : '检测选中容器';
+                setStreamingScanBtn.textContent = typeof t === 'function' ? t('setStreaming.scanBtn') : '检测选中对象';
             }
         });
 
@@ -1972,7 +1976,7 @@
                 setStreamingMultiEditorBtn.style.display = 'none';
             }
             if (setStreamingResults.length === 0) {
-                const emptyText = typeof t === 'function' ? t('setStreaming.emptyState') : '请点击"检测选中容器"按钮';
+                const emptyText = typeof t === 'function' ? t('setStreaming.emptyState') : '请点击"检测选中对象"按钮';
                 setStreamingBody.innerHTML = `<tr><td colspan="6" class="empty-state" id="setStreamingEmptyState">${emptyText}</td></tr>`;
                 return;
             }
@@ -1981,6 +1985,7 @@
                     <td><button class="btn-locate" onclick="locateObject('${item.id}')" title="定位"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></button></td>
                     <td>${index + 1}</td>
                     <td>${item.name || 'N/A'}</td>
+                    <td>${item.type || 'N/A'}</td>
                     <td>${item.duration !== null && item.duration !== undefined ? item.duration.toFixed(2) : 'N/A'}</td>
                     <td>${item.shouldSet ? (typeof t === 'function' ? t('setStreaming.yes') : '是') : (typeof t === 'function' ? t('setStreaming.no') : '否')}</td>
                     <td>${item.currentStreaming ? (typeof t === 'function' ? t('setStreaming.enabled') : '已启用') : (typeof t === 'function' ? t('setStreaming.disabled') : '未启用')}</td>

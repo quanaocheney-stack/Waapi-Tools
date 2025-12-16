@@ -916,7 +916,7 @@ async function setStreamingScan(port, threshold) {
             connection.close();
             return {
                 success: false,
-                message: 'Please select container objects in Wwise first'
+                message: 'Please select objects in Wwise first'
             };
         }
 
@@ -924,38 +924,226 @@ async function setStreamingScan(port, threshold) {
 
         for (const selectedObj of selectedObjects) {
             const containerGuid = selectedObj.id;
+            const selectedType = selectedObj.type || 'N/A';
+            console.log(`\n扫描对象: ${selectedObj.name || selectedObj.id} (类型: ${selectedType})`);
 
-            // 遍历容器下的所有Sound对象
-            for await (const soundData of walkWproj(session, containerGuid, ['id', 'name', 'maxDurationSource'], ['Sound'])) {
-                let soundId, soundName, maxDurationSource;
+            // 支持的对象类型：Sound 和音乐对象（MusicSegment, MusicPlaylistContainer, MusicSwitchContainer, MusicTrack）
+            const supportedTypes = ['Sound', 'MusicSegment', 'MusicPlaylistContainer', 'MusicSwitchContainer', 'MusicTrack'];
+            const processedIds = new Set(); // 用于去重
+            
+            // 方法0: 先检查选中的对象本身是否是支持的类型
+            if (supportedTypes.includes(selectedType)) {
+                console.log(`  方法0: 选中的对象本身就是支持的类型，直接处理...`);
+                try {
+                    // 获取选中对象的详细信息
+                    let objResult;
+                    try {
+                        objResult = await session.call(ak.wwise.core.object.get, [], {
+                            waql: `"${containerGuid}"`
+                        }, {
+                            return: ['id', 'name', 'maxDurationSource', 'type']
+                        });
+                    } catch (returnError) {
+                        if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                            returnError.error === 'ak.wwise.schema_validation_failed') {
+                            objResult = await session.call(ak.wwise.core.object.get, [], {
+                                waql: `"${containerGuid}"`
+                            });
+                        } else {
+                            throw returnError;
+                        }
+                    }
+                    
+                    const obj = (objResult.kwargs?.return || objResult.return || [])[0];
+                    if (obj) {
+                        console.log(`  找到对象: ${obj.name || 'N/A'} (类型: ${obj.type || 'N/A'}, ID: ${obj.id})`);
+                        
+                        if (obj.maxDurationSource && obj.maxDurationSource.trimmedDuration) {
+                            const trimmedDuration = obj.maxDurationSource.trimmedDuration;
+                            const shouldSet = trimmedDuration > threshold;
+                            
+                            console.log(`    ✓ 时长: ${trimmedDuration.toFixed(2)}秒, 需要设置: ${shouldSet ? '是' : '否'}`);
+                            
+                            const currentStreaming = await getPropertyValue(session, obj.id, 'IsStreamingEnabled') || false;
+                            console.log(`    当前流播放状态: ${currentStreaming ? '已启用' : '未启用'}`);
+                            
+                            results.push({
+                                id: obj.id,
+                                name: obj.name || 'N/A',
+                                type: obj.type || 'N/A',
+                                duration: trimmedDuration,
+                                shouldSet: shouldSet,
+                                currentStreaming: currentStreaming
+                            });
+                            processedIds.add(obj.id);
+                            console.log(`  ✓ 已添加选中对象本身`);
+                        } else {
+                            console.log(`    ⚠️  maxDurationSource 或 trimmedDuration 为空，跳过`);
+                        }
+                    }
+                } catch (error) {
+                    console.log(`  处理选中对象本身失败: ${error.message || error}`);
+                }
+            }
+            
+            // 先尝试直接查询所有子对象，看看有哪些类型
+            try {
+                let allChildrenResult;
+                try {
+                    allChildrenResult = await session.call(ak.wwise.core.object.get, [], {
+                        waql: `"${containerGuid}" select children`
+                    }, {
+                        return: ['id', 'name', 'type']
+                    });
+                } catch (returnError) {
+                    if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                        returnError.error === 'ak.wwise.schema_validation_failed') {
+                        allChildrenResult = await session.call(ak.wwise.core.object.get, [], {
+                            waql: `"${containerGuid}" select children`
+                        });
+                    } else {
+                        throw returnError;
+                    }
+                }
+                const allChildren = allChildrenResult.kwargs?.return || allChildrenResult.return || [];
+                console.log(`  直接子对象数量: ${allChildren.length}`);
+                const typeCount = {};
+                allChildren.forEach(child => {
+                    const childType = child.type || 'Unknown';
+                    typeCount[childType] = (typeCount[childType] || 0) + 1;
+                });
+                console.log(`  子对象类型统计:`, typeCount);
+            } catch (error) {
+                console.log(`  查询子对象失败: ${error.message || error}`);
+            }
+            
+            // 一次性查询所有支持的对象类型（使用 or 连接）
+            // 同时查询 children 和 descendants，确保不遗漏
+            console.log(`查询类型: ${supportedTypes.join(', ')}`);
+            let foundCount = results.length; // 从已处理的数量开始计数
+            let processedCount = processedIds.size; // 从已处理的数量开始计数
+            
+            // 方法1: 查询 descendants（后代对象）
+            console.log(`  方法1: 查询 descendants...`);
+            for await (const objData of walkWproj(session, containerGuid, ['id', 'name', 'maxDurationSource', 'type'], supportedTypes)) {
+                let objId, objName, maxDurationSource, objType;
                 
-                if (Array.isArray(soundData)) {
-                    [soundId, soundName, maxDurationSource] = soundData;
+                if (Array.isArray(objData)) {
+                    [objId, objName, maxDurationSource, objType] = objData;
                 } else {
-                    soundId = soundData.id;
-                    soundName = soundData.name;
-                    maxDurationSource = soundData.maxDurationSource;
+                    objId = objData.id;
+                    objName = objData.name;
+                    maxDurationSource = objData.maxDurationSource;
+                    objType = objData.type;
                 }
 
-                if (!maxDurationSource || !maxDurationSource.trimmedDuration) {
+                if (processedIds.has(objId)) {
+                    continue; // 已处理过，跳过
+                }
+                processedIds.add(objId);
+
+                foundCount++;
+                console.log(`  找到对象 [${foundCount}]: ${objName || 'N/A'} (类型: ${objType || 'N/A'}, ID: ${objId})`);
+
+                if (!maxDurationSource) {
+                    console.log(`    ⚠️  maxDurationSource 为空，跳过`);
+                    continue;
+                }
+
+                if (!maxDurationSource.trimmedDuration) {
+                    console.log(`    ⚠️  trimmedDuration 为空，跳过`);
                     continue;
                 }
 
                 const trimmedDuration = maxDurationSource.trimmedDuration; // 单位：秒
                 const shouldSet = trimmedDuration > threshold;
 
+                console.log(`    ✓ 时长: ${trimmedDuration.toFixed(2)}秒, 需要设置: ${shouldSet ? '是' : '否'}`);
+
                 // 获取当前流播放状态
-                const currentStreaming = await getPropertyValue(session, soundId, 'IsStreamingEnabled') || false;
+                const currentStreaming = await getPropertyValue(session, objId, 'IsStreamingEnabled') || false;
+                console.log(`    当前流播放状态: ${currentStreaming ? '已启用' : '未启用'}`);
 
                 results.push({
-                    id: soundId,
-                    name: soundName || 'N/A',
+                    id: objId,
+                    name: objName || 'N/A',
+                    type: objType || 'N/A',
                     duration: trimmedDuration,
                     shouldSet: shouldSet,
                     currentStreaming: currentStreaming
                 });
+                processedCount++;
             }
+            
+            // 方法2: 查询 children（直接子对象），补充可能遗漏的对象
+            console.log(`  方法2: 查询 children...`);
+            try {
+                const typeFilter = supportedTypes.map(t => `type = "${t}"`).join(' or ');
+                let childrenResult;
+                try {
+                    childrenResult = await session.call(ak.wwise.core.object.get, [], {
+                        waql: `"${containerGuid}" select children where ${typeFilter}`
+                    }, {
+                        return: ['id', 'name', 'maxDurationSource', 'type']
+                    });
+                } catch (returnError) {
+                    if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                        returnError.error === 'ak.wwise.schema_validation_failed') {
+                        childrenResult = await session.call(ak.wwise.core.object.get, [], {
+                            waql: `"${containerGuid}" select children where ${typeFilter}`
+                        });
+                    } else {
+                        throw returnError;
+                    }
+                }
+                const children = childrenResult.kwargs?.return || childrenResult.return || [];
+                console.log(`  找到 ${children.length} 个直接子对象`);
+                
+                for (const obj of children) {
+                    if (processedIds.has(obj.id)) {
+                        continue; // 已处理过，跳过
+                    }
+                    processedIds.add(obj.id);
+                    
+                    foundCount++;
+                    console.log(`  找到对象 [${foundCount}]: ${obj.name || 'N/A'} (类型: ${obj.type || 'N/A'}, ID: ${obj.id})`);
+                    
+                    if (!obj.maxDurationSource) {
+                        console.log(`    ⚠️  maxDurationSource 为空，跳过`);
+                        continue;
+                    }
+
+                    if (!obj.maxDurationSource.trimmedDuration) {
+                        console.log(`    ⚠️  trimmedDuration 为空，跳过`);
+                        continue;
+                    }
+
+                    const trimmedDuration = obj.maxDurationSource.trimmedDuration;
+                    const shouldSet = trimmedDuration > threshold;
+
+                    console.log(`    ✓ 时长: ${trimmedDuration.toFixed(2)}秒, 需要设置: ${shouldSet ? '是' : '否'}`);
+
+                    const currentStreaming = await getPropertyValue(session, obj.id, 'IsStreamingEnabled') || false;
+                    console.log(`    当前流播放状态: ${currentStreaming ? '已启用' : '未启用'}`);
+
+                    results.push({
+                        id: obj.id,
+                        name: obj.name || 'N/A',
+                        type: obj.type || 'N/A',
+                        duration: trimmedDuration,
+                        shouldSet: shouldSet,
+                        currentStreaming: currentStreaming
+                    });
+                    processedCount++;
+                }
+            } catch (error) {
+                console.log(`  查询 children 失败: ${error.message || error}`);
+            }
+            
+            console.log(`对象扫描完成: 找到 ${foundCount} 个对象，处理了 ${processedCount} 个有效对象`);
         }
+        
+        console.log(`\n总共找到 ${results.length} 个对象，满足条件的对象: ${results.filter(r => r.shouldSet).length} 个`);
 
         // 只返回需要设置的对象
         const filteredResults = results.filter(r => r.shouldSet);
