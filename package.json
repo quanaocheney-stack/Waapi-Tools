@@ -34,10 +34,12 @@
       "waapi-tools.html",
       "waapi-tools-functions.js",
       "waapi.js",
+      "wwise-recorder.js",
+      "i18n.js",
       "package.json",
       "!*.log",
       "!README*.md",
-      "!node_modules/**/*"
+      "node_modules/autobahn/**/*"
     ],
     "electronLanguages": ["zh-CN", "en-US"]
   }
