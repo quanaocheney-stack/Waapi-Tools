@@ -1347,28 +1347,17 @@ async function addListener(session, gameObjectId = 1) {
 }
 
 /**
- * 播放对象（Event直接播放，Sound等其他类型需要创建临时事件）
+ * 播放事件
  */
-async function playSound(session, obj, gameObjectId = 1) {
+async function playSound(session, event, gameObjectId = 1) {
     try {
-        // 如果是Event类型，直接播放
-        if (obj.type === 'Event') {
-            await session.call(ak.soundengine.postEvent, [], {
-                event: obj.id,
-                gameObject: gameObjectId
-            });
-            console.log(`✓ 已播放Event: ${obj.name} (ID: ${obj.id})`);
-        } else {
-            // 对于Sound等其他类型，需要通过Event播放
-            // 这里obj应该已经是创建好的临时事件
-            await session.call(ak.soundengine.postEvent, [], {
-                event: obj.id,
-                gameObject: gameObjectId
-            });
-            console.log(`✓ 已播放: ${obj.name || obj.SoundName} (ID: ${obj.id})`);
-        }
+        await session.call(ak.soundengine.postEvent, [], {
+            event: event.id,
+            gameObject: gameObjectId
+        });
+        console.log(`✓ 已播放: ${event.name || event.SoundName} (ID: ${event.id})`);
     } catch (error) {
-        console.log(`播放失败: ${error.error || error.message}`);
+        console.log(`播放失败: ${error.error}`);
         throw error;
     }
 }
@@ -1539,21 +1528,19 @@ async function createEvaluateEvent(session, soundObject) {
 }
 
 /**
- * 准备播放对象列表（Event直接使用，Sound等其他类型创建临时事件）
+ * 创建评估事件列表
  */
-async function preparePlaybackObjects(session, soundObjects) {
-    let playbackList = [];
+async function createEvaluateEvents(session, soundObjects) {
+    let eventList = [];
     for (let element of soundObjects) {
         if (element.type === 'Event') {
-            // Event类型直接使用，不需要创建临时事件
-            playbackList.push(element);
+            eventList.push(element);
         } else {
-            // Sound等其他类型需要创建临时Event来播放
             const event = await createEvaluateEvent(session, element);
-            playbackList.push(event);
+            eventList.push(event);
         }
     }
-    return playbackList;
+    return eventList;
 }
 
 /**
@@ -1618,8 +1605,7 @@ async function recordAudio(session, events, options = {}) {
 
     for (let i = 0; i < events.length; i++) {
         const element = events[i];
-        // Event类型使用name，临时事件使用SoundName
-        const itemName = element.name || element.SoundName || 'Unknown';
+        const itemName = element.SoundName || element.name;
         
         if (progressCallback) {
             progressCallback({
@@ -1741,14 +1727,14 @@ async function runRecording(port, options = {}) {
             progressCallback({ type: 'log', logType: 'info', message: `找到 ${filteredObjects.length} 个音频对象` });
         }
 
-        // 准备播放对象（Event直接使用，Sound创建临时事件）
-        const playbackObjects = await preparePlaybackObjects(session, filteredObjects);
+        // 创建评估事件
+        const evaluateEvents = await createEvaluateEvents(session, filteredObjects);
 
         // 准备播放
         await addListener(session);
 
         // 开始录制（传递文件收集数组）
-        await recordAudio(session, playbackObjects, {
+        await recordAudio(session, evaluateEvents, {
             recordingPath,
             recordingMode,
             recordDuration,
@@ -1756,7 +1742,7 @@ async function runRecording(port, options = {}) {
             recordedFiles // 传递文件数组用于收集
         });
 
-        // 清理临时事件（只清理非Event类型的临时事件）
+        // 清理临时事件
         await cleanTestEvents(session);
 
         if (connection && connection.isConnected) {
@@ -1765,7 +1751,7 @@ async function runRecording(port, options = {}) {
 
         return { 
             success: true, 
-            count: playbackObjects.length,
+            count: evaluateEvents.length,
             files: recordedFiles // 返回录制的文件列表
         };
     } catch (error) {
