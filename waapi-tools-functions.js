@@ -1663,7 +1663,7 @@ async function recordAudio(session, events, options = {}) {
     const {
         recordingPath,
         recordingMode = 'auto', // 'auto' 或 'manual'
-        recordDuration = null, // 录制时长（秒），手动模式下有效
+        maxDuration = 30, // 自动模式最大时长（秒）
         progressCallback = null,
         recordedFiles = null // 用于收集录制的文件路径
     } = options;
@@ -1714,34 +1714,35 @@ async function recordAudio(session, events, options = {}) {
             const currentRecordingPath = path.join(path.dirname(recordingPath), 'Record.wav');
             recorder.setRecordingPath(currentRecordingPath);
 
-            if (recordingMode === 'manual' && recordDuration && recordDuration > 0) {
-                // 手动模式：播放一次，然后等待指定时长才停止
-                await playSound(session, element);
+            if (recordingMode === 'manual') {
+                // 手动模式：不自动播放，用户使用走带控制播放，等待用户点击停止
+                if (progressCallback) {
+                    progressCallback({ type: 'log', logType: 'info', message: `  手动模式，请使用走带控制播放，完成后点击停止...` });
+                }
+                
+                // 无限等待，直到用户点击停止（每100ms检查一次）
+                while (!isStopRequested()) {
+                    await delay(100);
+                }
                 
                 if (progressCallback) {
-                    progressCallback({ type: 'log', logType: 'info', message: `  手动模式，等待录制时长: ${recordDuration} 秒` });
+                    progressCallback({ type: 'log', logType: 'warning', message: '⚠️ 用户请求停止录制' });
                 }
-                
-                // 等待指定时长（可中断）
-                const completed = await interruptibleDelay(recordDuration * 1000);
-                if (!completed) {
-                    if (progressCallback) {
-                        progressCallback({ type: 'log', logType: 'warning', message: '⚠️ 用户请求停止录制' });
-                    }
-                    await stopAll(session);
-                    // 不清除录制信息，让前端可以获取并重命名
-                    break;
-                }
+                // 不清除录制信息，让前端可以获取并重命名
+                break; // 手动模式只录制一个对象
             } else {
-                // 自动模式：播放完成后自动停止
+                // 自动模式：播放完成后自动停止（使用最大时长限制）
                 await playSound(session, element);
                 
+                // 使用传入的最大时长或对象自身时长中较小的值
+                const actualDuration = Math.min(element.Duration, maxDuration || 30);
+                
                 if (progressCallback) {
-                    progressCallback({ type: 'log', logType: 'info', message: `  自动模式，等待播放完成` });
+                    progressCallback({ type: 'log', logType: 'info', message: `  自动模式，等待播放完成 (最大 ${actualDuration.toFixed(1)} 秒)` });
                 }
                 
                 // 等待播放完成（可中断）
-                const completed = await interruptibleDelay(element.Duration * 1000);
+                const completed = await interruptibleDelay(actualDuration * 1000);
                 if (!completed) {
                     if (progressCallback) {
                         progressCallback({ type: 'log', logType: 'warning', message: '⚠️ 用户请求停止录制' });
@@ -1807,7 +1808,7 @@ async function runRecording(port, options = {}) {
     const {
         recordingPath,
         recordingMode = 'auto', // 'auto' 或 'manual'
-        recordDuration = null,
+        maxDuration = 30, // 自动模式最大时长（秒）
         progressCallback = null
     } = options;
 
@@ -1854,7 +1855,7 @@ async function runRecording(port, options = {}) {
         await recordAudio(session, evaluateEvents, {
             recordingPath,
             recordingMode,
-            recordDuration,
+            maxDuration,
             progressCallback,
             recordedFiles // 传递文件数组用于收集
         });

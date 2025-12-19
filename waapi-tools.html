@@ -681,14 +681,14 @@
             <button class="tab" data-tab="remove-wavs">删除未使用WAV</button>
         </div>
 
+
         <!-- 音频录制标签 -->
         <div class="tab-content" id="audio-recording-tab">
-            <div class="info-box" id="audioRecordingInfoBox">
-                录制Wwise中选中的音频对象。支持自动模式（播放完成后自动停止）和手动模式（指定录制时长）。
-            </div>
             <div class="tool-panel">
                 <div class="tool-controls">
-                    <div class="input-group" style="flex: 0 1 auto; max-width: 500px;">
+                    <button class="btn-primary" id="startRecordingBtn">开始录制</button>
+                    <button class="btn-danger" id="stopRecordingBtn" disabled>停止</button>
+                    <div class="input-group" style="flex: 0 1 auto; max-width: 500px; margin-left: 15px;">
                         <label id="recordingPathLabel" style="min-width: 80px;">录制路径:</label>
                         <input type="text" id="recordingPathInput" placeholder="从 Wwise Recorder 插件复制路径..." style="flex: 1; min-width: 180px; max-width: 300px;">
                         <button class="btn-primary" id="selectRecordingPathBtn" style="padding: 6px 12px; font-size: 12px; white-space: nowrap;">选择</button>
@@ -705,13 +705,19 @@
                                 <input type="radio" name="recordingMode" value="manual">
                                 <span id="recordingModeManual">手动</span>
                             </label>
+                            <button class="btn-secondary" id="recordingModeHelpBtn" style="padding: 2px 8px; font-size: 12px; margin-left: 8px; border-radius: 50%; min-width: 24px; height: 24px;" title="录制模式说明">?</button>
                         </div>
-                        <div class="input-group" id="recordingDurationGroup" style="display: none; margin-left: 10px;">
-                            <label id="recordingDurationLabel" style="min-width: auto;">时长:</label>
-                            <input type="number" id="recordingDurationInput" value="10" min="1" max="3600" step="1" style="width: 60px;">
-                            <span id="recordingDurationUnit" style="font-size: 13px; margin-left: 4px;">秒</span>
+                        <div class="input-group" id="maxDurationGroup" style="margin-left: 10px;">
+                            <label id="maxDurationLabel" style="min-width: auto;">最大时长:</label>
+                            <input type="number" id="maxDurationInput" value="30" min="1" max="3600" step="1" style="width: 60px;">
+                            <span id="maxDurationUnit" style="font-size: 13px; margin-left: 4px;">秒</span>
                         </div>
                     </div>
+                </div>
+                <div class="help-text" id="recordingModeHelpText" style="display: none; margin-top: 10px; padding: 8px; background: #e7f3ff; border-left: 4px solid #2196F3; border-radius: 4px; font-size: 12px; color: #0d47a1;">
+                    <strong id="recordingModeHelpTitle">📋 录制模式说明：</strong><br>
+                    <span id="recordingModeAutoHelp">🔹 <b>自动模式</b>：适用于录制多个音频文件，播放完成后自动开始下一个，可设定最大播放时长</span><br>
+                    <span id="recordingModeManualHelp">🔹 <b>手动模式</b>：需要手动在 Wwise 里面播放，Recorder 插件只会记录最近一次播放结果，需要等待 Wwise 播放完成，再点击停止</span>
                 </div>
                 <div class="help-text" id="recordingPathHelpText" style="display: none; margin-top: 10px; padding: 8px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; font-size: 12px; color: #856404;">
                     <strong id="recordingPathHelpTitle">📋 如何获取录制路径：</strong><br>
@@ -721,10 +727,6 @@
                     <span id="recordingPathHelp4">4. 将完整路径复制到上方输入框（例如：C:\Users\...\Record.wav）</span><br>
                     <strong id="recordingPathHelpNote">注意：工具会在录制完成后自动将 Record.wav 重命名为对应对象名称</strong>
                 </div>
-                <div class="tool-controls" style="margin-top: 15px;">
-                    <button class="btn-primary" id="startRecordingBtn">开始录制</button>
-                    <button class="btn-danger" id="stopRecordingBtn" disabled>停止</button>
-                </div>
             </div>
             <div class="results-container" style="margin-top: 15px;">
                 <div class="results-header">
@@ -732,6 +734,7 @@
                     <div class="results-header-actions">
                         <span class="results-count" id="recordingProgressText" style="background: transparent; color: var(--text-secondary);">就绪</span>
                         <button class="btn-primary" id="openRecordingFolderBtn" style="display: none; padding: 6px 12px; font-size: 12px;">📂 打开文件夹</button>
+                        <button class="btn-primary" id="exportRecordingBtn" style="display: none; padding: 6px 12px; font-size: 12px;">📥 导出</button>
                     </div>
                 </div>
                 <div class="progress-bar" id="recordingProgressBar" style="display: none; margin: 10px 15px;">
@@ -785,6 +788,7 @@
                         <span class="results-count" id="resetFadersNonZeroCount" style="margin-left: 10px; color: var(--warning-color, #ff9800); display: none;"></span>
                         <button class="btn-primary" id="resetFadersListViewBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到List View</button>
                         <button class="btn-primary" id="resetFadersMultiEditorBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到Multi Editor</button>
+                        <button class="btn-primary" id="exportResetFadersBtn" style="display: none; padding: 6px 12px; font-size: 12px;">📥 导出</button>
                         <button class="btn-clear" id="resetFadersClearBtn">清除结果</button>
                     </div>
                 </div>
@@ -832,6 +836,7 @@
                         <span class="results-count" id="deleteEventsCount">0 个Event</span>
                         <button class="btn-primary" id="deleteEventsListViewBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到List View</button>
                         <button class="btn-primary" id="deleteEventsMultiEditorBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到Multi Editor</button>
+                        <button class="btn-primary" id="exportDeleteEventsBtn" style="display: none; padding: 6px 12px; font-size: 12px;">📥 导出</button>
                         <button class="btn-clear" id="deleteEventsClearBtn">清除结果</button>
                     </div>
                 </div>
@@ -878,6 +883,7 @@
                         <span class="results-count" id="setStreamingCount">0 个对象</span>
                         <button class="btn-primary" id="setStreamingListViewBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到List View</button>
                         <button class="btn-primary" id="setStreamingMultiEditorBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到Multi Editor</button>
+                        <button class="btn-primary" id="exportSetStreamingBtn" style="display: none; padding: 6px 12px; font-size: 12px;">📥 导出</button>
                         <button class="btn-clear" id="setStreamingClearBtn">清除结果</button>
                     </div>
                 </div>
@@ -924,6 +930,7 @@
                     <span class="results-title" id="removeWavsResultsTitle">扫描结果</span>
                     <div class="results-header-actions">
                         <span class="results-count" id="removeWavsCount">0 个文件</span>
+                        <button class="btn-primary" id="exportRemoveWavsBtn" style="display: none; padding: 6px 12px; font-size: 12px;">📥 导出</button>
                         <button class="btn-clear" id="removeWavsClearBtn">清除结果</button>
                     </div>
                 </div>
@@ -992,8 +999,6 @@
         // 更新音频录制相关文本
         function updateAudioRecordingTexts() {
             if (typeof t !== 'function') return;
-            const infoBox = document.getElementById('audioRecordingInfoBox');
-            if (infoBox) infoBox.textContent = t('audioRecording.info');
             
             const selectPathBtn = document.getElementById('selectRecordingPathBtn');
             if (selectPathBtn) selectPathBtn.textContent = t('audioRecording.selectPathBtn');
@@ -1006,6 +1011,14 @@
             
             const recordingModeManual = document.getElementById('recordingModeManual');
             if (recordingModeManual) recordingModeManual.textContent = t('audioRecording.recordingModeManual');
+            
+            // 更新录制模式帮助文本
+            const recordingModeHelpTitle = document.getElementById('recordingModeHelpTitle');
+            if (recordingModeHelpTitle) recordingModeHelpTitle.innerHTML = t('audioRecording.recordingModeHelpTitle');
+            const recordingModeAutoHelp = document.getElementById('recordingModeAutoHelp');
+            if (recordingModeAutoHelp) recordingModeAutoHelp.innerHTML = t('audioRecording.recordingModeAutoHelp');
+            const recordingModeManualHelp = document.getElementById('recordingModeManualHelp');
+            if (recordingModeManualHelp) recordingModeManualHelp.innerHTML = t('audioRecording.recordingModeManualHelp');
             
             const recordingDurationLabel = document.getElementById('recordingDurationLabel');
             if (recordingDurationLabel) recordingDurationLabel.textContent = t('audioRecording.recordingDurationLabel');
@@ -1536,6 +1549,23 @@
             resetFadersResults = [];
             updateResetFadersTable();
             resetFadersConfirmBtn.style.display = 'none';
+            document.getElementById('exportResetFadersBtn').style.display = 'none';
+        });
+
+        // 导出重置推子结果
+        const exportResetFadersBtn = document.getElementById('exportResetFadersBtn');
+        exportResetFadersBtn.addEventListener('click', () => {
+            if (resetFadersResults.length === 0) return;
+            const headers = ['序号', '名称', '类型', '原始音量', '状态'];
+            const data = resetFadersResults.map((item, index) => [
+                index + 1,
+                item.name || 'N/A',
+                item.type || 'N/A',
+                item.originalVolume !== null && item.originalVolume !== undefined ? item.originalVolume.toFixed(2) : 'N/A',
+                item.status || '待重置'
+            ]);
+            const filename = `${currentProjectName || 'Wwise'}_重置推子_${getTimestamp()}.csv`;
+            exportToCSV(data, headers, filename);
         });
 
         const resetFadersListViewBtn = document.getElementById('resetFadersListViewBtn');
@@ -1669,9 +1699,11 @@
             if (nonZeroObjects.length > 0) {
                 resetFadersListViewBtn.style.display = 'inline-block';
                 resetFadersMultiEditorBtn.style.display = 'inline-block';
+                document.getElementById('exportResetFadersBtn').style.display = 'inline-block';
             } else {
                 resetFadersListViewBtn.style.display = 'none';
                 resetFadersMultiEditorBtn.style.display = 'none';
+                document.getElementById('exportResetFadersBtn').style.display = 'none';
             }
             
             // 如果没有检测结果，显示空状态
@@ -1699,6 +1731,51 @@
                     <td>${item.status === '已归零' ? (typeof t === 'function' ? t('resetFaders.statusZeroed') : '已归零') : (item.status === '已重置' ? (typeof t === 'function' ? t('resetFaders.statusReset') : '已重置') + ' <span style="color: #4caf50;">✓</span>' : (item.status === '待重置' ? (typeof t === 'function' ? t('resetFaders.statusPending') : '待重置') : (item.status || (typeof t === 'function' ? t('resetFaders.statusPending') : '待重置'))))}</td>
                 </tr>
             `).join('');
+        }
+
+        // 通用导出CSV函数
+        function exportToCSV(data, headers, filename) {
+            if (!data || data.length === 0) {
+                alert('没有数据可导出');
+                return;
+            }
+            
+            // 添加BOM以支持Excel正确显示中文
+            let csvContent = '\uFEFF';
+            
+            // 添加表头
+            csvContent += headers.join(',') + '\n';
+            
+            // 添加数据行
+            data.forEach(row => {
+                const rowData = row.map(cell => {
+                    // 处理包含逗号、引号或换行的单元格
+                    const cellStr = String(cell === null || cell === undefined ? '' : cell);
+                    if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+                        return '"' + cellStr.replace(/"/g, '""') + '"';
+                    }
+                    return cellStr;
+                });
+                csvContent += rowData.join(',') + '\n';
+            });
+            
+            // 创建Blob并下载
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+        
+        // 获取当前时间戳用于文件名
+        function getTimestamp() {
+            const now = new Date();
+            return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
         }
 
         // 定位对象到Wwise窗口
@@ -1794,6 +1871,22 @@
             deleteEventsResults = [];
             updateDeleteEventsTable();
             deleteEventsConfirmBtn.style.display = 'none';
+            document.getElementById('exportDeleteEventsBtn').style.display = 'none';
+        });
+
+        // 导出删除空Event结果
+        const exportDeleteEventsBtn = document.getElementById('exportDeleteEventsBtn');
+        exportDeleteEventsBtn.addEventListener('click', () => {
+            if (deleteEventsResults.length === 0) return;
+            const headers = ['序号', '名称', '原因', '路径'];
+            const data = deleteEventsResults.map((item, index) => [
+                index + 1,
+                item.name || 'N/A',
+                item.reason || '所有Action都引用不存在的对象',
+                item.path || item.guid || 'N/A'
+            ]);
+            const filename = `${currentProjectName || 'Wwise'}_空Event_${getTimestamp()}.csv`;
+            exportToCSV(data, headers, filename);
         });
 
         const deleteEventsListViewBtn = document.getElementById('deleteEventsListViewBtn');
@@ -1881,9 +1974,11 @@
             if (deleteEventsResults.length > 0) {
                 deleteEventsListViewBtn.style.display = 'inline-block';
                 deleteEventsMultiEditorBtn.style.display = 'inline-block';
+                document.getElementById('exportDeleteEventsBtn').style.display = 'inline-block';
             } else {
                 deleteEventsListViewBtn.style.display = 'none';
                 deleteEventsMultiEditorBtn.style.display = 'none';
+                document.getElementById('exportDeleteEventsBtn').style.display = 'none';
             }
             if (deleteEventsResults.length === 0) {
                 const emptyText = typeof t === 'function' ? t('deleteEvents.emptyState') : '请点击"扫描无效Event"按钮';
@@ -1984,6 +2079,24 @@
             setStreamingResults = [];
             updateSetStreamingTable();
             setStreamingConfirmBtn.style.display = 'none';
+            document.getElementById('exportSetStreamingBtn').style.display = 'none';
+        });
+
+        // 导出设置Streaming结果
+        const exportSetStreamingBtn = document.getElementById('exportSetStreamingBtn');
+        exportSetStreamingBtn.addEventListener('click', () => {
+            if (setStreamingResults.length === 0) return;
+            const headers = ['序号', '名称', '类型', '时长(秒)', '建议设置', '当前状态'];
+            const data = setStreamingResults.map((item, index) => [
+                index + 1,
+                item.name || 'N/A',
+                item.type || 'N/A',
+                item.duration !== null && item.duration !== undefined ? item.duration.toFixed(2) : 'N/A',
+                item.shouldSet ? '是' : '否',
+                item.currentStreaming ? '已启用' : '未启用'
+            ]);
+            const filename = `${currentProjectName || 'Wwise'}_Streaming检测_${getTimestamp()}.csv`;
+            exportToCSV(data, headers, filename);
         });
 
         setStreamingListViewBtn.addEventListener('click', async () => {
@@ -2070,9 +2183,11 @@
             if (setStreamingResults.length > 0) {
                 setStreamingListViewBtn.style.display = 'inline-block';
                 setStreamingMultiEditorBtn.style.display = 'inline-block';
+                document.getElementById('exportSetStreamingBtn').style.display = 'inline-block';
             } else {
                 setStreamingListViewBtn.style.display = 'none';
                 setStreamingMultiEditorBtn.style.display = 'none';
+                document.getElementById('exportSetStreamingBtn').style.display = 'none';
             }
             if (setStreamingResults.length === 0) {
                 const emptyText = typeof t === 'function' ? t('setStreaming.emptyState') : '请点击"检测选中对象"按钮';
@@ -2182,12 +2297,33 @@
             removeWavsResults = [];
             updateRemoveWavsTable();
             removeWavsConfirmBtn.style.display = 'none';
+            document.getElementById('exportRemoveWavsBtn').style.display = 'none';
+        });
+
+        // 导出删除未使用WAV结果
+        const exportRemoveWavsBtn = document.getElementById('exportRemoveWavsBtn');
+        exportRemoveWavsBtn.addEventListener('click', () => {
+            if (removeWavsResults.length === 0) return;
+            const headers = ['序号', '文件路径', '大小(KB)', '修改时间'];
+            const data = removeWavsResults.map((item, index) => [
+                index + 1,
+                item.path || 'N/A',
+                ((item.size || 0) / 1024).toFixed(2),
+                item.mtime ? new Date(item.mtime).toLocaleString('zh-CN') : 'N/A'
+            ]);
+            const filename = `${currentProjectName || 'Wwise'}_未使用WAV_${getTimestamp()}.csv`;
+            exportToCSV(data, headers, filename);
         });
 
         function updateRemoveWavsTable() {
             const countText = typeof t === 'function' ? t('removeWavs.resultsCount') : '个文件';
             removeWavsCount.textContent = `${removeWavsResults.length} ${countText}`;
             removeWavsClearBtn.disabled = removeWavsResults.length === 0;
+            if (removeWavsResults.length > 0) {
+                document.getElementById('exportRemoveWavsBtn').style.display = 'inline-block';
+            } else {
+                document.getElementById('exportRemoveWavsBtn').style.display = 'none';
+            }
             if (removeWavsResults.length === 0) {
                 const emptyText = typeof t === 'function' ? t('removeWavs.emptyState') : '请点击"扫描未使用文件"按钮';
                 removeWavsBody.innerHTML = `<tr><td colspan="4" class="empty-state" id="removeWavsEmptyState">${emptyText}</td></tr>`;
@@ -2234,8 +2370,8 @@
         const recordingPathHelpText = document.getElementById('recordingPathHelpText');
         const recordingModeRadios = document.querySelectorAll('input[name="recordingMode"]');
         const recordingModeHint = document.getElementById('recordingModeHint');
-        const recordingDurationGroup = document.getElementById('recordingDurationGroup');
-        const recordingDurationInput = document.getElementById('recordingDurationInput');
+        const maxDurationGroup = document.getElementById('maxDurationGroup');
+        const maxDurationInput = document.getElementById('maxDurationInput');
         const startRecordingBtn = document.getElementById('startRecordingBtn');
         const stopRecordingBtn = document.getElementById('stopRecordingBtn');
         const recordingProgressText = document.getElementById('recordingProgressText');
@@ -2279,14 +2415,21 @@
             recordingPathHelpText.style.display = recordingPathHelpText.style.display === 'none' ? 'block' : 'none';
         });
 
+        // 录制模式帮助按钮
+        const recordingModeHelpBtn = document.getElementById('recordingModeHelpBtn');
+        const recordingModeHelpText = document.getElementById('recordingModeHelpText');
+        recordingModeHelpBtn.addEventListener('click', () => {
+            recordingModeHelpText.style.display = recordingModeHelpText.style.display === 'none' ? 'block' : 'none';
+        });
+
         // 录制模式切换
         recordingModeRadios.forEach(radio => {
             radio.addEventListener('change', () => {
                 if (radio.value === 'manual') {
-                    recordingDurationGroup.style.display = 'flex';
-                    recordingModeHint.textContent = typeof t === 'function' ? t('audioRecording.manualModeHint') : '持续录制到指定时长才停止';
+                    maxDurationGroup.style.display = 'none';
+                    recordingModeHint.textContent = typeof t === 'function' ? t('audioRecording.manualModeHint') : '使用走带控制播放，点击停止按钮结束录制';
                 } else {
-                    recordingDurationGroup.style.display = 'none';
+                    maxDurationGroup.style.display = 'flex';
                     recordingModeHint.textContent = typeof t === 'function' ? t('audioRecording.autoModeHint') : '播放完成后自动停止';
                 }
             });
@@ -2338,12 +2481,7 @@
 
             const port = parseInt(portInput.value) || 8080;
             const recordingMode = document.querySelector('input[name="recordingMode"]:checked').value;
-            const recordDuration = recordingMode === 'manual' ? parseFloat(recordingDurationInput.value) : null;
-
-            if (recordingMode === 'manual' && (!recordDuration || recordDuration < 1 || recordDuration > 3600)) {
-                alert(typeof t === 'function' ? t('audioRecording.alertInvalidDuration') : '请输入有效的录制时长（1-3600秒）');
-                return;
-            }
+            const maxDuration = recordingMode === 'auto' ? parseFloat(maxDurationInput.value) || 30 : null;
 
             isRecording = true;
             startRecordingBtn.disabled = true;
@@ -2354,9 +2492,10 @@
             recordedFiles = [];
             recordingResultsBody.innerHTML = '';
             openRecordingFolderBtn.style.display = 'none';
+            document.getElementById('exportRecordingBtn').style.display = 'none';
 
             try {
-                const result = await ipcRenderer.invoke('waapi-start-recording', port, recordingPath, recordingMode, recordDuration);
+                const result = await ipcRenderer.invoke('waapi-start-recording', port, recordingPath, recordingMode, maxDuration);
                 if (result.success) {
                     recordingProgressText.textContent = typeof t === 'function' ? t('audioRecording.complete', { count: result.count }) : `录制完成 - 共 ${result.count} 个对象`;
                     if (result.files && result.files.length > 0) {
@@ -2450,9 +2589,9 @@
                 return `
                     <tr>
                         <td>${index + 1}</td>
-                        <td style="font-family: monospace; font-size: 12px;" title="${filePath}">${fileName}</td>
+                        <td title="${filePath}">${fileName}</td>
                         <td>
-                            <button class="btn-success" onclick="openRecordingFile('${filePath.replace(/\\/g, '\\\\')}')" style="padding: 4px 8px; font-size: 12px;">
+                            <button class="btn-success" onclick="openRecordingFile('${filePath.replace(/\\/g, '\\\\')}')" style="padding: 6px 12px;">
                                 ${typeof t === 'function' ? t('audioRecording.openFile') : '打开文件'}
                             </button>
                         </td>
@@ -2460,6 +2599,7 @@
                 `;
             }).join('');
             openRecordingFolderBtn.style.display = 'inline-block';
+            document.getElementById('exportRecordingBtn').style.display = 'inline-block';
         }
 
         // 打开录制文件
@@ -2482,6 +2622,21 @@
             } catch (error) {
                 alert('打开文件夹失败: ' + error.message);
             }
+        });
+
+        // 导出录制结果
+        const exportRecordingBtn = document.getElementById('exportRecordingBtn');
+        exportRecordingBtn.addEventListener('click', () => {
+            if (recordedFiles.length === 0) return;
+            const path = require('path');
+            const headers = ['序号', '文件名', '完整路径'];
+            const data = recordedFiles.map((filePath, index) => [
+                index + 1,
+                path.basename(filePath),
+                filePath
+            ]);
+            const filename = `${currentProjectName || 'Wwise'}_录制结果_${getTimestamp()}.csv`;
+            exportToCSV(data, headers, filename);
         });
 
     </script>

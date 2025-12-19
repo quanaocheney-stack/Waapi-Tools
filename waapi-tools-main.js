@@ -126,11 +126,11 @@ ipcMain.handle('waapi-show-multi-editor', async (event, port, objectIds) => {
 });
 
 // 开始录制
-ipcMain.handle('waapi-start-recording', async (event, port, recordingPath, recordingMode, recordDuration) => {
+ipcMain.handle('waapi-start-recording', async (event, port, recordingPath, recordingMode, maxDuration) => {
     const result = await waapiTools.runRecording(port, {
         recordingPath,
         recordingMode: recordingMode || 'auto', // 'auto' 或 'manual'
-        recordDuration: recordDuration || null,
+        maxDuration: maxDuration || 30,
         progressCallback: (progress) => {
             if (mainWindow && !mainWindow.isDestroyed()) {
                 mainWindow.webContents.send('recording-progress', progress);
