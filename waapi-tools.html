@@ -2380,11 +2380,43 @@
 
         // 停止录制
         stopRecordingBtn.addEventListener('click', async () => {
-            // 停止功能可以在这里实现，目前录制是自动完成的
+            // 调用后端停止录制
+            stopRecordingBtn.disabled = true;
+            stopRecordingBtn.textContent = typeof t === 'function' ? t('audioRecording.stopping') : '停止中...';
+            
+            try {
+                const stopResult = await ipcRenderer.invoke('waapi-stop-recording');
+                recordingProgressText.textContent = typeof t === 'function' ? t('audioRecording.stopped') : '录制已停止';
+                
+                // 如果有当前录制对象信息，延迟后重命名文件
+                if (stopResult.currentItemName && stopResult.recordingPath) {
+                    // 等待1秒，确保文件完全保存
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    try {
+                        const renameResult = await ipcRenderer.invoke('waapi-rename-recording', stopResult.recordingPath, stopResult.currentItemName);
+                        if (renameResult.success) {
+                            console.log('录制文件已重命名:', renameResult.path);
+                            // 添加到录制文件列表
+                            if (!recordedFiles.includes(renameResult.path)) {
+                                recordedFiles.push(renameResult.path);
+                                displayRecordingResults(recordedFiles);
+                            }
+                        } else {
+                            console.error('重命名失败:', renameResult.error);
+                        }
+                    } catch (renameError) {
+                        console.error('重命名录制文件失败:', renameError);
+                    }
+                }
+            } catch (error) {
+                console.error('停止录制失败:', error);
+            }
+            
             isRecording = false;
             startRecordingBtn.disabled = false;
             stopRecordingBtn.disabled = true;
-            recordingProgressText.textContent = typeof t === 'function' ? t('audioRecording.stopped') : '录制已停止';
+            stopRecordingBtn.textContent = typeof t === 'function' ? t('audioRecording.stopBtn') : '停止';
         });
 
         // 监听录制进度

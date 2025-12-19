@@ -148,6 +148,30 @@ ipcMain.handle('waapi-start-recording', async (event, port, recordingPath, recor
     return result;
 });
 
+// 停止录制
+ipcMain.handle('waapi-stop-recording', async () => {
+    return waapiTools.requestStopRecording();
+});
+
+// 重命名录制文件（手动停止后使用）
+ipcMain.handle('waapi-rename-recording', async (event, recordingPath, objectName) => {
+    try {
+        const WwiseRecorder = require('./wwise-recorder');
+        const recorder = new WwiseRecorder();
+        recorder.setRecordingPath(recordingPath);
+        
+        // 检查文件是否存在
+        if (!fs.existsSync(recordingPath)) {
+            return { success: false, error: '录制文件不存在' };
+        }
+        
+        const newPath = recorder.renameRecordingFile(objectName);
+        return { success: true, path: newPath };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
 // 选择录制路径
 ipcMain.handle('waapi-select-recording-path', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {

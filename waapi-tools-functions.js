@@ -4,6 +4,66 @@ const fs = require('fs');
 const path = require('path');
 const WwiseRecorder = require('./wwise-recorder');
 
+// ==================== 录制停止控制 ====================
+let recordingStopRequested = false;
+let currentRecordingSession = null;
+let currentRecordingItemName = null; // 当前正在录制的对象名称
+let currentRecordingPath = null; // 当前录制路径
+
+/**
+ * 请求停止录制
+ */
+function requestStopRecording() {
+    recordingStopRequested = true;
+    console.log('录制停止请求已发送');
+    return { 
+        success: true, 
+        message: '停止请求已发送',
+        currentItemName: currentRecordingItemName,
+        recordingPath: currentRecordingPath
+    };
+}
+
+/**
+ * 设置当前录制对象信息
+ */
+function setCurrentRecordingInfo(itemName, recordingPath) {
+    currentRecordingItemName = itemName;
+    currentRecordingPath = recordingPath;
+}
+
+/**
+ * 获取当前录制对象信息
+ */
+function getCurrentRecordingInfo() {
+    return {
+        itemName: currentRecordingItemName,
+        recordingPath: currentRecordingPath
+    };
+}
+
+/**
+ * 清除当前录制对象信息
+ */
+function clearCurrentRecordingInfo() {
+    currentRecordingItemName = null;
+    currentRecordingPath = null;
+}
+
+/**
+ * 重置停止标志
+ */
+function resetStopFlag() {
+    recordingStopRequested = false;
+}
+
+/**
+ * 检查是否请求停止
+ */
+function isStopRequested() {
+    return recordingStopRequested;
+}
+
 // ==================== 辅助函数 ====================
 
 /**
@@ -1580,6 +1640,23 @@ async function cleanTestEvents(session) {
 }
 
 /**
+ * 可中断的延迟函数
+ * @param {number} ms - 延迟毫秒数
+ * @param {number} checkInterval - 检查停止标志的间隔（毫秒）
+ * @returns {Promise<boolean>} - 返回 true 表示正常完成，false 表示被中断
+ */
+async function interruptibleDelay(ms, checkInterval = 100) {
+    const startTime = Date.now();
+    while (Date.now() - startTime < ms) {
+        if (isStopRequested()) {
+            return false; // 被中断
+        }
+        await delay(Math.min(checkInterval, ms - (Date.now() - startTime)));
+    }
+    return true; // 正常完成
+}
+
+/**
  * 录制音频（支持循环和时长设定）
  */
 async function recordAudio(session, events, options = {}) {
@@ -1604,8 +1681,22 @@ async function recordAudio(session, events, options = {}) {
     }
 
     for (let i = 0; i < events.length; i++) {
+        // 检查是否请求停止
+        if (isStopRequested()) {
+            if (progressCallback) {
+                progressCallback({ type: 'log', logType: 'warning', message: '⚠️ 用户请求停止录制' });
+            }
+            await stopAll(session);
+            clearCurrentRecordingInfo();
+            break;
+        }
+
         const element = events[i];
         const itemName = element.SoundName || element.name;
+        
+        // 设置当前录制对象信息（用于手动停止时重命名）
+        const currentRecordPath = path.join(path.dirname(recordingPath), 'Record.wav');
+        setCurrentRecordingInfo(itemName, currentRecordPath);
         
         if (progressCallback) {
             progressCallback({
@@ -1631,8 +1722,16 @@ async function recordAudio(session, events, options = {}) {
                     progressCallback({ type: 'log', logType: 'info', message: `  手动模式，等待录制时长: ${recordDuration} 秒` });
                 }
                 
-                // 等待指定时长（不会自动停止，必须等到时间）
-                await delay(recordDuration * 1000);
+                // 等待指定时长（可中断）
+                const completed = await interruptibleDelay(recordDuration * 1000);
+                if (!completed) {
+                    if (progressCallback) {
+                        progressCallback({ type: 'log', logType: 'warning', message: '⚠️ 用户请求停止录制' });
+                    }
+                    await stopAll(session);
+                    // 不清除录制信息，让前端可以获取并重命名
+                    break;
+                }
             } else {
                 // 自动模式：播放完成后自动停止
                 await playSound(session, element);
@@ -1641,8 +1740,16 @@ async function recordAudio(session, events, options = {}) {
                     progressCallback({ type: 'log', logType: 'info', message: `  自动模式，等待播放完成` });
                 }
                 
-                // 等待播放完成
-                await delay(element.Duration * 1000);
+                // 等待播放完成（可中断）
+                const completed = await interruptibleDelay(element.Duration * 1000);
+                if (!completed) {
+                    if (progressCallback) {
+                        progressCallback({ type: 'log', logType: 'warning', message: '⚠️ 用户请求停止录制' });
+                    }
+                    await stopAll(session);
+                    // 不清除录制信息，让前端可以获取并重命名
+                    break;
+                }
             }
 
             // 停止当前播放
@@ -1671,6 +1778,9 @@ async function recordAudio(session, events, options = {}) {
             
             // 再等待0.1秒后播放下一个对象（总共间隔0.6秒）
             await delay(100);
+            
+            // 清除当前录制信息（正常完成一个对象的录制）
+            clearCurrentRecordingInfo();
         } catch (error) {
             if (progressCallback) {
                 progressCallback({ type: 'log', logType: 'error', message: `❌ 录制失败: ${error.message}` });
@@ -1682,7 +1792,11 @@ async function recordAudio(session, events, options = {}) {
     }
 
     if (progressCallback) {
-        progressCallback({ type: 'log', logType: 'success', message: '✓ 所有录制完成' });
+        if (isStopRequested()) {
+            progressCallback({ type: 'log', logType: 'warning', message: '⚠️ 录制已停止' });
+        } else {
+            progressCallback({ type: 'log', logType: 'success', message: '✓ 所有录制完成' });
+        }
     }
 }
 
@@ -1696,6 +1810,9 @@ async function runRecording(port, options = {}) {
         recordDuration = null,
         progressCallback = null
     } = options;
+
+    // 重置停止标志
+    resetStopFlag();
 
     let connection = null;
     let session = null;
@@ -1779,6 +1896,9 @@ module.exports = {
     locateObject,
     showListView,
     showMultiEditor,
-    runRecording
+    runRecording,
+    requestStopRecording,
+    getCurrentRecordingInfo,
+    clearCurrentRecordingInfo
 };
 
