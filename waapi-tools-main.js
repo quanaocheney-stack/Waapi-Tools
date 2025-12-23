@@ -226,3 +226,15 @@ ipcMain.handle('waapi-open-folder', async (event, folderPath) => {
     }
 });
 
+// RTPC管理 - 扫描
+ipcMain.handle('waapi-rtpc-scan', async (event, port) => {
+    return await waapiTools.rtpcScan(port);
+});
+
+// RTPC管理 - 应用修改
+ipcMain.handle('waapi-rtpc-apply', async (event, port, changes) => {
+    return await waapiTools.rtpcApply(port, changes);
+});
+
+
+

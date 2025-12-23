@@ -1883,6 +1883,161 @@ async function runRecording(port, options = {}) {
     }
 }
 
+// ==================== RTPC管理功能 ====================
+
+/**
+ * 扫描所有RTPC
+ */
+async function rtpcScan(port) {
+    const { session, connection } = await createConnection(port);
+    try {
+        console.log('开始扫描所有RTPC...');
+        
+        // 使用WAQL查询所有GameParameter类型的对象
+        let result;
+        try {
+            result = await session.call(ak.wwise.core.object.get, [], {
+                waql: 'from type GameParameter'
+            }, {
+                return: ['id', 'name', 'path', 'Min', 'Max', 'InitialValue', 'BindToBuiltInParam', 'SimulationValue', 'RTPCRamping']
+            });
+        } catch (returnError) {
+            // 旧版本兼容
+            if (returnError.error === 'ak.wwise.invalid_arguments' || 
+                returnError.error === 'ak.wwise.schema_validation_failed') {
+                result = await session.call(ak.wwise.core.object.get, [], {
+                    waql: 'from type GameParameter'
+                });
+            } else {
+                throw returnError;
+            }
+        }
+
+        const rtpcs = result.kwargs?.return || result.return || [];
+        console.log(`找到 ${rtpcs.length} 个RTPC`);
+
+        const results = [];
+        for (const rtpc of rtpcs) {
+            // 获取详细属性
+            const min = rtpc.Min !== undefined ? rtpc.Min : await getPropertyValue(session, rtpc.id, 'Min') || 0;
+            const max = rtpc.Max !== undefined ? rtpc.Max : await getPropertyValue(session, rtpc.id, 'Max') || 100;
+            const defaultVal = rtpc.InitialValue !== undefined ? rtpc.InitialValue : await getPropertyValue(session, rtpc.id, 'InitialValue') || 0;
+            const bindTo = rtpc.BindToBuiltInParam !== undefined ? rtpc.BindToBuiltInParam : await getPropertyValue(session, rtpc.id, 'BindToBuiltInParam') || 'None';
+            
+            // 获取插值相关属性
+            const rtpcRamping = rtpc.RTPCRamping !== undefined ? rtpc.RTPCRamping : await getPropertyValue(session, rtpc.id, 'RTPCRamping');
+            
+            // 获取SlewRate、Attack、Release
+            const slewRate = await getPropertyValue(session, rtpc.id, 'SlewRate') || 0;
+            const filteringAttack = await getPropertyValue(session, rtpc.id, 'FilteringAttack') || 0;
+            const filteringRelease = await getPropertyValue(session, rtpc.id, 'FilteringRelease') || 0;
+
+            results.push({
+                id: rtpc.id,
+                name: rtpc.name || 'N/A',
+                path: rtpc.path || '',
+                min: min,
+                max: max,
+                default: defaultVal,
+                bindTo: bindTo,
+                mode: rtpcRamping || 0, // 0=None, 1=SlewRate, 2=Filtering
+                slewRate: slewRate,
+                attack: filteringAttack,
+                release: filteringRelease
+            });
+        }
+
+        connection.close();
+        return {
+            success: true,
+            results: results,
+            count: results.length
+        };
+    } catch (error) {
+        if (connection && connection.isConnected) {
+            connection.close();
+        }
+        console.error('RTPC扫描失败:', error);
+        return {
+            success: false,
+            message: error.error || error.message || '扫描失败',
+            results: []
+        };
+    }
+}
+
+/**
+ * 应用RTPC修改
+ */
+async function rtpcApply(port, changes) {
+    const { session, connection } = await createConnection(port);
+    try {
+        await beginUndoGroup(session);
+
+        let count = 0;
+        for (const change of changes) {
+            try {
+                // 设置Range属性
+                if (change.min !== undefined) {
+                    await setPropertyValue(session, change.id, 'Min', parseFloat(change.min));
+                }
+                if (change.max !== undefined) {
+                    await setPropertyValue(session, change.id, 'Max', parseFloat(change.max));
+                }
+                if (change.default !== undefined) {
+                    await setPropertyValue(session, change.id, 'InitialValue', parseFloat(change.default));
+                }
+                
+                // 设置绑定参数
+                if (change.bindTo !== undefined) {
+                    await setPropertyValue(session, change.id, 'BindToBuiltInParam', change.bindTo);
+                }
+                
+                // 设置插值模式
+                if (change.mode !== undefined) {
+                    await setPropertyValue(session, change.id, 'RTPCRamping', parseInt(change.mode));
+                }
+                
+                // 设置SlewRate
+                if (change.slewRate !== undefined) {
+                    await setPropertyValue(session, change.id, 'SlewRate', parseFloat(change.slewRate));
+                }
+                
+                // 设置Attack和Release (Filtering模式)
+                if (change.attack !== undefined) {
+                    await setPropertyValue(session, change.id, 'FilteringAttack', parseFloat(change.attack));
+                }
+                if (change.release !== undefined) {
+                    await setPropertyValue(session, change.id, 'FilteringRelease', parseFloat(change.release));
+                }
+                
+                count++;
+            } catch (error) {
+                console.error(`设置RTPC ${change.name} 失败:`, error);
+            }
+        }
+
+        await endUndoGroup(session, 'Bulk RTPC Modification');
+        connection.close();
+
+        return {
+            success: true,
+            count: count,
+            message: `成功修改 ${count} 个RTPC`
+        };
+    } catch (error) {
+        if (connection && connection.isConnected) {
+            connection.close();
+        }
+        console.error('RTPC应用修改失败:', error);
+        return {
+            success: false,
+            message: error.error || error.message || '应用修改失败',
+            count: 0
+        };
+    }
+}
+
 module.exports = {
     testConnection,
     getOriginalsPath,
@@ -1900,6 +2055,8 @@ module.exports = {
     runRecording,
     requestStopRecording,
     getCurrentRecordingInfo,
-    clearCurrentRecordingInfo
+    clearCurrentRecordingInfo,
+    rtpcScan,
+    rtpcApply
 };
 

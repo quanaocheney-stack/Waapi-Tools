@@ -679,6 +679,7 @@
             <button class="tab" data-tab="delete-events">删除无效Event</button>
             <button class="tab" data-tab="set-streaming">设置流播放</button>
             <button class="tab" data-tab="remove-wavs">删除未使用WAV</button>
+            <button class="tab" data-tab="rtpc-manager">RTPC管理</button>
         </div>
 
 
@@ -686,14 +687,14 @@
         <div class="tab-content" id="audio-recording-tab">
             <div class="tool-panel">
                 <div class="tool-controls">
-                    <button class="btn-primary" id="startRecordingBtn">开始录制</button>
-                    <button class="btn-danger" id="stopRecordingBtn" disabled>停止</button>
-                    <div class="input-group" style="flex: 0 1 auto; max-width: 500px; margin-left: 15px;">
+                    <div class="input-group" style="flex: 0 1 auto; max-width: 500px;">
                         <label id="recordingPathLabel" style="min-width: 80px;">录制路径:</label>
                         <input type="text" id="recordingPathInput" placeholder="从 Wwise Recorder 插件复制路径..." style="flex: 1; min-width: 180px; max-width: 300px;">
                         <button class="btn-primary" id="selectRecordingPathBtn" style="padding: 6px 12px; font-size: 12px; white-space: nowrap;">选择</button>
                         <button class="btn-secondary" id="recordingPathHelpBtn" style="padding: 6px 10px; font-size: 12px;" title="如何获取录制路径">?</button>
                     </div>
+                    <button class="btn-primary" id="startRecordingBtn" style="margin-left: 15px;">开始录制</button>
+                    <button class="btn-danger" id="stopRecordingBtn" disabled>停止</button>
                     <div class="input-group" style="margin-left: 20px;">
                         <label id="recordingModeLabel" style="min-width: 70px;">录制模式:</label>
                         <div class="radio-group">
@@ -953,6 +954,56 @@
                 </div>
             </div>
         </div>
+
+        <!-- RTPC管理标签 -->
+        <div class="tab-content" id="rtpc-manager-tab">
+            <div class="info-box" id="rtpcManagerInfoBox">
+                批量导出和导入工程中所有RTPC的属性配置。支持CSV格式，可在Excel中编辑后重新导入。
+            </div>
+            <div class="tool-panel">
+                <div class="tool-controls">
+                    <button class="btn-primary" id="rtpcScanBtn">扫描所有RTPC</button>
+                    <button class="btn-primary" id="rtpcExportBtn" style="display: none;">📥 导出CSV</button>
+                    <button class="btn-primary" id="rtpcImportBtn">📤 导入CSV</button>
+                    <input type="file" id="rtpcImportFile" accept=".csv" style="display: none;">
+                    <button class="btn-danger" id="rtpcApplyBtn" style="display: none;">确认应用修改</button>
+                </div>
+            </div>
+            <div class="results-container">
+                <div class="results-header">
+                    <span class="results-title" id="rtpcResultsTitle">RTPC列表</span>
+                    <div class="results-header-actions">
+                        <span class="results-count" id="rtpcCount">0 个RTPC</span>
+                        <button class="btn-primary" id="rtpcListViewBtn" style="display: none; padding: 6px 12px; font-size: 12px;">显示到List View</button>
+                        <button class="btn-clear" id="rtpcClearBtn">清除结果</button>
+                    </div>
+                </div>
+                <div class="results-table" style="max-height: 400px; overflow-y: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th id="rtpcThLocate" style="width: 50px;">定位</th>
+                                <th id="rtpcThIndex" style="width: 50px;">序号</th>
+                                <th id="rtpcThName">名称</th>
+                                <th id="rtpcThMin" style="width: 80px;">Min</th>
+                                <th id="rtpcThMax" style="width: 80px;">Max</th>
+                                <th id="rtpcThDefault" style="width: 80px;">Default</th>
+                                <th id="rtpcThBindTo">绑定参数</th>
+                                <th id="rtpcThMode" style="width: 100px;">插值模式</th>
+                                <th id="rtpcThSlew" style="width: 80px;">Slew Rate</th>
+                                <th id="rtpcThAttack" style="width: 80px;">Attack</th>
+                                <th id="rtpcThRelease" style="width: 80px;">Release</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rtpcBody">
+                            <tr>
+                                <td colspan="11" class="empty-state" id="rtpcEmptyState">请点击"扫描所有RTPC"按钮</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="i18n.js"></script>
@@ -979,7 +1030,7 @@
             // 更新标签页
             const tabs = document.querySelectorAll('.tab');
             tabs.forEach((tab, index) => {
-                const tabKeys = ['tabs.audioRecording', 'tabs.resetFaders', 'tabs.deleteEvents', 'tabs.setStreaming', 'tabs.removeWavs'];
+                const tabKeys = ['tabs.audioRecording', 'tabs.resetFaders', 'tabs.deleteEvents', 'tabs.setStreaming', 'tabs.removeWavs', 'tabs.rtpcManager'];
                 if (tabKeys[index]) {
                     tab.textContent = t(tabKeys[index]);
                 }
@@ -994,6 +1045,7 @@
             updateDeleteEventsTexts();
             updateSetStreamingTexts();
             updateRemoveWavsTexts();
+            updateRtpcManagerTexts();
         }
         
         // 更新音频录制相关文本
@@ -1268,6 +1320,67 @@
             const emptyState = document.getElementById('removeWavsEmptyState');
             if (emptyState && removeWavsResults && removeWavsResults.length === 0) {
                 emptyState.textContent = t('removeWavs.emptyState');
+            }
+        }
+        
+        // 更新RTPC管理相关文本
+        function updateRtpcManagerTexts() {
+            if (typeof t !== 'function') return;
+            
+            const infoBox = document.getElementById('rtpcManagerInfoBox');
+            if (infoBox) infoBox.textContent = t('rtpcManager.info');
+            
+            const scanBtn = document.getElementById('rtpcScanBtn');
+            if (scanBtn && !scanBtn.disabled && !scanBtn.textContent.includes('...')) scanBtn.textContent = t('rtpcManager.scanBtn');
+            
+            const exportBtn = document.getElementById('rtpcExportBtn');
+            if (exportBtn) exportBtn.textContent = t('rtpcManager.exportBtn');
+            
+            const importBtn = document.getElementById('rtpcImportBtn');
+            if (importBtn) importBtn.textContent = t('rtpcManager.importBtn');
+            
+            const applyBtn = document.getElementById('rtpcApplyBtn');
+            if (applyBtn && !applyBtn.disabled && !applyBtn.textContent.includes('...')) applyBtn.textContent = t('rtpcManager.applyBtn');
+            
+            const resultsTitle = document.getElementById('rtpcResultsTitle');
+            if (resultsTitle) resultsTitle.textContent = t('rtpcManager.resultsTitle');
+            
+            const clearBtn = document.getElementById('rtpcClearBtn');
+            if (clearBtn) clearBtn.textContent = t('rtpcManager.clearBtn');
+            
+            const listViewBtn = document.getElementById('rtpcListViewBtn');
+            if (listViewBtn && !listViewBtn.disabled && !listViewBtn.textContent.includes('...')) {
+                listViewBtn.textContent = t('rtpcManager.listViewBtn');
+            }
+            
+            // 更新表格表头
+            const thLocate = document.getElementById('rtpcThLocate');
+            if (thLocate) thLocate.textContent = t('rtpcManager.tableHeaders.locate');
+            const thIndex = document.getElementById('rtpcThIndex');
+            if (thIndex) thIndex.textContent = t('rtpcManager.tableHeaders.index');
+            const thName = document.getElementById('rtpcThName');
+            if (thName) thName.textContent = t('rtpcManager.tableHeaders.name');
+            const thMin = document.getElementById('rtpcThMin');
+            if (thMin) thMin.textContent = t('rtpcManager.tableHeaders.min');
+            const thMax = document.getElementById('rtpcThMax');
+            if (thMax) thMax.textContent = t('rtpcManager.tableHeaders.max');
+            const thDefault = document.getElementById('rtpcThDefault');
+            if (thDefault) thDefault.textContent = t('rtpcManager.tableHeaders.default');
+            const thBindTo = document.getElementById('rtpcThBindTo');
+            if (thBindTo) thBindTo.textContent = t('rtpcManager.tableHeaders.bindTo');
+            const thMode = document.getElementById('rtpcThMode');
+            if (thMode) thMode.textContent = t('rtpcManager.tableHeaders.mode');
+            const thSlew = document.getElementById('rtpcThSlew');
+            if (thSlew) thSlew.textContent = t('rtpcManager.tableHeaders.slewRate');
+            const thAttack = document.getElementById('rtpcThAttack');
+            if (thAttack) thAttack.textContent = t('rtpcManager.tableHeaders.attack');
+            const thRelease = document.getElementById('rtpcThRelease');
+            if (thRelease) thRelease.textContent = t('rtpcManager.tableHeaders.release');
+            
+            // 更新空状态文本
+            const rtpcEmptyState = document.getElementById('rtpcEmptyState');
+            if (rtpcEmptyState && typeof rtpcResults !== 'undefined' && rtpcResults.length === 0) {
+                rtpcEmptyState.textContent = t('rtpcManager.emptyState');
             }
         }
         
@@ -2638,6 +2751,362 @@
             const filename = `${currentProjectName || 'Wwise'}_录制结果_${getTimestamp()}.csv`;
             exportToCSV(data, headers, filename);
         });
+
+        // ==================== RTPC管理功能 ====================
+        let rtpcResults = [];
+        let rtpcChanges = []; // 存储待应用的修改
+        const rtpcScanBtn = document.getElementById('rtpcScanBtn');
+        const rtpcExportBtn = document.getElementById('rtpcExportBtn');
+        const rtpcImportBtn = document.getElementById('rtpcImportBtn');
+        const rtpcImportFile = document.getElementById('rtpcImportFile');
+        const rtpcApplyBtn = document.getElementById('rtpcApplyBtn');
+        const rtpcCount = document.getElementById('rtpcCount');
+        const rtpcBody = document.getElementById('rtpcBody');
+        const rtpcClearBtn = document.getElementById('rtpcClearBtn');
+        const rtpcListViewBtn = document.getElementById('rtpcListViewBtn');
+
+        // 插值模式映射
+        const interpolationModes = {
+            0: 'None',
+            1: 'Slew Rate',
+            2: 'Filtering'
+        };
+        const interpolationModeValues = {
+            'None': 0,
+            'Slew Rate': 1,
+            'Filtering': 2
+        };
+
+        // 扫描RTPC
+        rtpcScanBtn.addEventListener('click', async () => {
+            if (!isConnected) {
+                alert(typeof t === 'function' ? t('rtpcManager.alertNotConnected') : '请先连接到Wwise');
+                return;
+            }
+
+            rtpcScanBtn.disabled = true;
+            rtpcScanBtn.textContent = typeof t === 'function' ? t('rtpcManager.scanBtnScanning') : '扫描中...';
+
+            try {
+                const port = parseInt(portInput.value) || 8080;
+                const result = await ipcRenderer.invoke('waapi-rtpc-scan', port);
+                
+                if (result.success) {
+                    rtpcResults = result.results;
+                    rtpcChanges = [];
+                    updateRtpcTable();
+                    rtpcExportBtn.style.display = rtpcResults.length > 0 ? 'inline-block' : 'none';
+                    rtpcListViewBtn.style.display = rtpcResults.length > 0 ? 'inline-block' : 'none';
+                    rtpcApplyBtn.style.display = 'none';
+                } else {
+                    alert((typeof t === 'function' ? t('rtpcManager.alertScanFailed') : '扫描失败') + ': ' + result.message);
+                }
+            } catch (error) {
+                alert((typeof t === 'function' ? t('rtpcManager.alertScanFailed') : '扫描失败') + ': ' + error.message);
+            } finally {
+                rtpcScanBtn.disabled = false;
+                rtpcScanBtn.textContent = typeof t === 'function' ? t('rtpcManager.scanBtn') : '扫描所有RTPC';
+            }
+        });
+
+        // 导出CSV
+        rtpcExportBtn.addEventListener('click', () => {
+            if (rtpcResults.length === 0) return;
+            
+            const headers = ['名称', 'ID', 'Min', 'Max', 'Default', '绑定参数', '插值模式', 'Slew Rate', 'Attack', 'Release', '路径'];
+            const data = rtpcResults.map(item => [
+                item.name,
+                item.id,
+                item.min,
+                item.max,
+                item.default,
+                item.bindTo || 'None',
+                interpolationModes[item.mode] || 'None',
+                item.slewRate || 0,
+                item.attack || 0,
+                item.release || 0,
+                item.path || ''
+            ]);
+            
+            const filename = `${currentProjectName || 'Wwise'}_RTPC配置_${getTimestamp()}.csv`;
+            exportToCSV(data, headers, filename);
+        });
+
+        // 导入CSV按钮点击
+        rtpcImportBtn.addEventListener('click', () => {
+            rtpcImportFile.click();
+        });
+
+        // 处理CSV导入
+        rtpcImportFile.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            try {
+                const text = await file.text();
+                const lines = text.split('\n').filter(line => line.trim());
+                
+                if (lines.length < 2) {
+                    alert('CSV文件格式错误：至少需要表头和一行数据');
+                    return;
+                }
+                
+                // 解析CSV（处理逗号和引号）
+                function parseCSVLine(line) {
+                    const result = [];
+                    let current = '';
+                    let inQuotes = false;
+                    
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        if (char === '"') {
+                            inQuotes = !inQuotes;
+                        } else if (char === ',' && !inQuotes) {
+                            result.push(current.trim());
+                            current = '';
+                        } else {
+                            current += char;
+                        }
+                    }
+                    result.push(current.trim());
+                    return result;
+                }
+                
+                const headers = parseCSVLine(lines[0]);
+                const nameIndex = headers.findIndex(h => h.includes('名称') || h.toLowerCase() === 'name');
+                const idIndex = headers.findIndex(h => h === 'ID' || h === 'id');
+                const minIndex = headers.findIndex(h => h === 'Min' || h === 'min');
+                const maxIndex = headers.findIndex(h => h === 'Max' || h === 'max');
+                const defaultIndex = headers.findIndex(h => h === 'Default' || h === 'default');
+                const bindToIndex = headers.findIndex(h => h.includes('绑定') || h.toLowerCase().includes('bind'));
+                const modeIndex = headers.findIndex(h => h.includes('插值') || h.toLowerCase().includes('interpolation') || h.toLowerCase().includes('mode'));
+                const slewIndex = headers.findIndex(h => h.toLowerCase().includes('slew'));
+                const attackIndex = headers.findIndex(h => h.toLowerCase().includes('attack'));
+                const releaseIndex = headers.findIndex(h => h.toLowerCase().includes('release'));
+                
+                if (idIndex === -1) {
+                    alert('CSV文件格式错误：缺少ID列');
+                    return;
+                }
+                
+                // 解析数据行并比较差异
+                rtpcChanges = [];
+                for (let i = 1; i < lines.length; i++) {
+                    const values = parseCSVLine(lines[i]);
+                    const id = values[idIndex];
+                    
+                    // 查找对应的原始RTPC
+                    const original = rtpcResults.find(r => r.id === id);
+                    if (!original) continue;
+                    
+                    const change = { id: id, name: original.name };
+                    let hasChange = false;
+                    
+                    // 比较各属性
+                    if (minIndex !== -1 && values[minIndex] !== undefined) {
+                        const newMin = parseFloat(values[minIndex]);
+                        if (!isNaN(newMin) && newMin !== original.min) {
+                            change.min = newMin;
+                            hasChange = true;
+                        }
+                    }
+                    if (maxIndex !== -1 && values[maxIndex] !== undefined) {
+                        const newMax = parseFloat(values[maxIndex]);
+                        if (!isNaN(newMax) && newMax !== original.max) {
+                            change.max = newMax;
+                            hasChange = true;
+                        }
+                    }
+                    if (defaultIndex !== -1 && values[defaultIndex] !== undefined) {
+                        const newDefault = parseFloat(values[defaultIndex]);
+                        if (!isNaN(newDefault) && newDefault !== original.default) {
+                            change.default = newDefault;
+                            hasChange = true;
+                        }
+                    }
+                    if (bindToIndex !== -1 && values[bindToIndex] !== undefined) {
+                        const newBindTo = values[bindToIndex].trim();
+                        if (newBindTo && newBindTo !== original.bindTo) {
+                            change.bindTo = newBindTo;
+                            hasChange = true;
+                        }
+                    }
+                    if (modeIndex !== -1 && values[modeIndex] !== undefined) {
+                        const modeStr = values[modeIndex].trim();
+                        const newMode = interpolationModeValues[modeStr];
+                        if (newMode !== undefined && newMode !== original.mode) {
+                            change.mode = newMode;
+                            hasChange = true;
+                        }
+                    }
+                    if (slewIndex !== -1 && values[slewIndex] !== undefined) {
+                        const newSlew = parseFloat(values[slewIndex]);
+                        if (!isNaN(newSlew) && newSlew !== original.slewRate) {
+                            change.slewRate = newSlew;
+                            hasChange = true;
+                        }
+                    }
+                    if (attackIndex !== -1 && values[attackIndex] !== undefined) {
+                        const newAttack = parseFloat(values[attackIndex]);
+                        if (!isNaN(newAttack) && newAttack !== original.attack) {
+                            change.attack = newAttack;
+                            hasChange = true;
+                        }
+                    }
+                    if (releaseIndex !== -1 && values[releaseIndex] !== undefined) {
+                        const newRelease = parseFloat(values[releaseIndex]);
+                        if (!isNaN(newRelease) && newRelease !== original.release) {
+                            change.release = newRelease;
+                            hasChange = true;
+                        }
+                    }
+                    
+                    if (hasChange) {
+                        rtpcChanges.push(change);
+                    }
+                }
+                
+                if (rtpcChanges.length === 0) {
+                    alert(typeof t === 'function' ? t('rtpcManager.importNoChanges') : '导入的CSV与当前配置相同，无需修改');
+                } else {
+                    alert((typeof t === 'function' ? t('rtpcManager.importSuccess', { count: rtpcChanges.length }) : `导入成功，找到 ${rtpcChanges.length} 个需要修改的RTPC`));
+                    rtpcApplyBtn.style.display = 'inline-block';
+                    // 高亮显示有变化的行
+                    updateRtpcTableWithChanges();
+                }
+            } catch (error) {
+                alert((typeof t === 'function' ? t('rtpcManager.importError', { error: error.message }) : `导入失败：${error.message}`));
+            }
+            
+            // 清空文件输入
+            rtpcImportFile.value = '';
+        });
+
+        // 应用修改
+        rtpcApplyBtn.addEventListener('click', async () => {
+            if (rtpcChanges.length === 0) return;
+            
+            const confirmed = await ipcRenderer.invoke('show-message-box', {
+                type: 'warning',
+                title: typeof t === 'function' ? t('rtpcManager.applyConfirmTitle') : '确认应用修改',
+                message: typeof t === 'function' ? t('rtpcManager.applyConfirmMessage', { count: rtpcChanges.length }) : `确定要应用 ${rtpcChanges.length} 个RTPC的修改吗？`,
+                buttons: typeof t === 'function' ? [t('common.cancel'), t('common.confirm')] : ['取消', '确认'],
+                defaultId: 1
+            });
+            
+            if (confirmed.response === 1) {
+                rtpcApplyBtn.disabled = true;
+                rtpcApplyBtn.textContent = typeof t === 'function' ? t('rtpcManager.applyBtnApplying') : '应用中...';
+                
+                try {
+                    const port = parseInt(portInput.value) || 8080;
+                    const result = await ipcRenderer.invoke('waapi-rtpc-apply', port, rtpcChanges);
+                    
+                    if (result.success) {
+                        alert(typeof t === 'function' ? t('rtpcManager.applySuccess', { count: result.count }) : `成功应用 ${result.count} 个RTPC的修改`);
+                        // 重新扫描以更新数据
+                        rtpcScanBtn.click();
+                    } else {
+                        alert((typeof t === 'function' ? t('rtpcManager.alertApplyFailed') : '应用修改失败') + ': ' + result.message);
+                    }
+                } catch (error) {
+                    alert((typeof t === 'function' ? t('rtpcManager.alertApplyFailed') : '应用修改失败') + ': ' + error.message);
+                } finally {
+                    rtpcApplyBtn.disabled = false;
+                    rtpcApplyBtn.textContent = typeof t === 'function' ? t('rtpcManager.applyBtn') : '确认应用修改';
+                }
+            }
+        });
+
+        // 清除结果
+        rtpcClearBtn.addEventListener('click', () => {
+            rtpcResults = [];
+            rtpcChanges = [];
+            updateRtpcTable();
+            rtpcExportBtn.style.display = 'none';
+            rtpcApplyBtn.style.display = 'none';
+            rtpcListViewBtn.style.display = 'none';
+        });
+
+        // 显示到List View
+        rtpcListViewBtn.addEventListener('click', async () => {
+            if (rtpcResults.length === 0) return;
+            
+            rtpcListViewBtn.disabled = true;
+            rtpcListViewBtn.textContent = typeof t === 'function' ? t('rtpcManager.listViewBtn') + '...' : '显示中...';
+            
+            try {
+                const port = parseInt(portInput.value) || 8080;
+                const objectIds = rtpcResults.map(r => r.id);
+                const result = await ipcRenderer.invoke('waapi-show-list-view', port, objectIds, '');
+                
+                if (!result.success) {
+                    alert('显示到List View失败: ' + result.message);
+                }
+            } catch (error) {
+                alert('显示到List View失败: ' + error.message);
+            } finally {
+                rtpcListViewBtn.disabled = false;
+                rtpcListViewBtn.textContent = typeof t === 'function' ? t('rtpcManager.listViewBtn') : '显示到List View';
+            }
+        });
+
+        // 更新RTPC表格
+        function updateRtpcTable() {
+            const countText = typeof t === 'function' ? t('rtpcManager.resultsCount') : '个RTPC';
+            rtpcCount.textContent = `${rtpcResults.length} ${countText}`;
+            rtpcClearBtn.disabled = rtpcResults.length === 0;
+            
+            if (rtpcResults.length === 0) {
+                const emptyText = typeof t === 'function' ? t('rtpcManager.emptyState') : '请点击"扫描所有RTPC"按钮';
+                rtpcBody.innerHTML = `<tr><td colspan="11" class="empty-state" id="rtpcEmptyState">${emptyText}</td></tr>`;
+                return;
+            }
+            
+            rtpcBody.innerHTML = rtpcResults.map((item, index) => {
+                const modeName = interpolationModes[item.mode] || 'None';
+                return `
+                    <tr data-id="${item.id}">
+                        <td>
+                            <button class="btn-locate" onclick="locateRtpc('${item.id}')" title="定位到Wwise">📍</button>
+                        </td>
+                        <td>${index + 1}</td>
+                        <td title="${item.path || ''}">${item.name}</td>
+                        <td>${item.min}</td>
+                        <td>${item.max}</td>
+                        <td>${item.default}</td>
+                        <td>${item.bindTo || 'None'}</td>
+                        <td>${modeName}</td>
+                        <td>${item.mode === 1 ? item.slewRate : '-'}</td>
+                        <td>${item.mode === 2 ? item.attack : '-'}</td>
+                        <td>${item.mode === 2 ? item.release : '-'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // 更新表格并高亮变化
+        function updateRtpcTableWithChanges() {
+            updateRtpcTable();
+            
+            // 高亮有变化的行
+            rtpcChanges.forEach(change => {
+                const row = rtpcBody.querySelector(`tr[data-id="${change.id}"]`);
+                if (row) {
+                    row.style.background = 'rgba(255, 193, 7, 0.2)';
+                }
+            });
+        }
+
+        // 定位RTPC到Wwise
+        window.locateRtpc = async function(objectId) {
+            try {
+                const port = parseInt(portInput.value) || 8080;
+                await ipcRenderer.invoke('waapi-locate-object', port, objectId);
+            } catch (error) {
+                console.error('定位失败:', error);
+            }
+        };
 
     </script>
 </body>
