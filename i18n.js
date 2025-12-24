@@ -167,7 +167,7 @@ const i18n = {
             alertDeleteFailed: '删除失败'
         },
         rtpcManager: {
-            info: '批量导出和导入工程中所有RTPC的属性配置。支持CSV格式，可在Excel中编辑后重新导入。',
+            info: '批量导出和导入RTPC属性配置。支持CSV格式，可在Excel中编辑后重新导入。也可直接读取WWU文件（路径：Game Parameters Work Unit/*.wwu）。',
             scanBtn: '扫描所有RTPC',
             scanBtnScanning: '扫描中...',
             exportBtn: '📥 导出CSV',
@@ -437,7 +437,7 @@ const i18n = {
             alertDeleteFailed: 'Delete failed'
         },
         rtpcManager: {
-            info: 'Batch export and import RTPC property configurations in the project. Supports CSV format for editing in Excel.',
+            info: 'Batch export and import RTPC property configurations. Supports CSV format for editing in Excel. Also supports reading WWU files directly (Path: Game Parameters Work Unit/*.wwu).',
             scanBtn: 'Scan All RTPCs',
             scanBtnScanning: 'Scanning...',
             exportBtn: '📥 Export CSV',
