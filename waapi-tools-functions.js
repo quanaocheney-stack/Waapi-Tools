@@ -2038,6 +2038,221 @@ async function rtpcApply(port, changes) {
     }
 }
 
+/**
+ * 从WWU文件读取RTPC数据
+ */
+function rtpcReadWwu(wwuPath) {
+    try {
+        console.log('读取WWU文件:', wwuPath);
+        
+        if (!fs.existsSync(wwuPath)) {
+            return {
+                success: false,
+                message: 'WWU文件不存在',
+                results: []
+            };
+        }
+
+        const content = fs.readFileSync(wwuPath, 'utf-8');
+        const results = [];
+
+        // 使用正则表达式匹配GameParameter元素
+        // 匹配格式: <GameParameter Name="xxx" ID="{xxx}">...</GameParameter>
+        const gameParamRegex = /<GameParameter\s+Name="([^"]+)"\s+ID="\{([^}]+)\}"[^>]*>([\s\S]*?)<\/GameParameter>/g;
+        
+        let match;
+        while ((match = gameParamRegex.exec(content)) !== null) {
+            const name = match[1];
+            const id = `{${match[2]}}`;
+            const innerContent = match[3];
+            
+            // 解析属性
+            const rtpc = {
+                id: id,
+                name: name,
+                path: '', // WWU文件中没有路径信息
+                min: 0,
+                max: 100,
+                default: 0,
+                bindTo: 'None',
+                mode: 0, // 0=None, 1=SlewRate, 2=Filtering
+                slewRate: 0,
+                attack: 0,
+                release: 0
+            };
+
+            // 解析Property元素
+            const propRegex = /<Property\s+Name="([^"]+)"\s+Type="([^"]+)"\s+Value="([^"]+)"\s*\/>/g;
+            let propMatch;
+            while ((propMatch = propRegex.exec(innerContent)) !== null) {
+                const propName = propMatch[1];
+                const propType = propMatch[2];
+                const propValue = propMatch[3];
+
+                switch (propName) {
+                    case 'Min':
+                        rtpc.min = parseFloat(propValue);
+                        break;
+                    case 'Max':
+                        rtpc.max = parseFloat(propValue);
+                        break;
+                    case 'InitialValue':
+                        rtpc.default = parseFloat(propValue);
+                        break;
+                    case 'BindToBuiltInParam':
+                        rtpc.bindTo = propValue;
+                        break;
+                    case 'RTPCRamping':
+                        rtpc.mode = parseInt(propValue);
+                        break;
+                    case 'SlewRate':
+                        rtpc.slewRate = parseFloat(propValue);
+                        break;
+                    case 'FilterTimeUp':
+                    case 'FilteringAttack':
+                        rtpc.attack = parseFloat(propValue);
+                        break;
+                    case 'FilterTimeDown':
+                    case 'FilteringRelease':
+                        rtpc.release = parseFloat(propValue);
+                        break;
+                }
+            }
+
+            results.push(rtpc);
+        }
+
+        console.log(`从WWU文件读取到 ${results.length} 个RTPC`);
+        return {
+            success: true,
+            results: results,
+            count: results.length
+        };
+    } catch (error) {
+        console.error('读取WWU文件失败:', error);
+        return {
+            success: false,
+            message: error.message || '读取WWU文件失败',
+            results: []
+        };
+    }
+}
+
+/**
+ * 将RTPC修改保存到WWU文件
+ */
+function rtpcApplyWwu(wwuPath, changes) {
+    try {
+        console.log('保存修改到WWU文件:', wwuPath);
+        console.log('修改数量:', changes.length);
+
+        if (!fs.existsSync(wwuPath)) {
+            return {
+                success: false,
+                message: 'WWU文件不存在',
+                count: 0
+            };
+        }
+
+        let content = fs.readFileSync(wwuPath, 'utf-8');
+        let modifiedCount = 0;
+
+        for (const change of changes) {
+            // 从ID中提取GUID（去掉花括号）
+            const guidMatch = change.id.match(/\{([^}]+)\}/);
+            if (!guidMatch) {
+                console.log(`无效的ID格式: ${change.id}`);
+                continue;
+            }
+            const guid = guidMatch[1];
+
+            // 查找对应的GameParameter元素
+            const gameParamRegex = new RegExp(
+                `(<GameParameter\\s+Name="[^"]+?"\\s+ID="\\{${guid}\\}"[^>]*>)([\\s\\S]*?)(</GameParameter>)`,
+                'g'
+            );
+
+            content = content.replace(gameParamRegex, (match, openTag, innerContent, closeTag) => {
+                let modified = false;
+                let newInnerContent = innerContent;
+
+                // 属性名映射（CSV/WAAPI属性名 -> WWU属性名）
+                const propertyMap = {
+                    'min': 'Min',
+                    'max': 'Max',
+                    'default': 'InitialValue',
+                    'mode': 'RTPCRamping',
+                    'slewRate': 'SlewRate',
+                    'attack': 'FilterTimeUp',
+                    'release': 'FilterTimeDown'
+                };
+
+                // 处理每个需要修改的属性
+                for (const [changeKey, wwuPropName] of Object.entries(propertyMap)) {
+                    if (change[changeKey] !== undefined) {
+                        const value = change[changeKey];
+                        
+                        // 确定属性类型
+                        let propType = 'Real64';
+                        if (changeKey === 'mode') {
+                            propType = 'int16';
+                        }
+
+                        // 尝试更新现有属性
+                        const propRegex = new RegExp(
+                            `(<Property\\s+Name="${wwuPropName}"\\s+Type="${propType}"\\s+Value=")([^"]+)("\\s*/>)`,
+                            'g'
+                        );
+
+                        if (propRegex.test(newInnerContent)) {
+                            // 属性存在，更新值
+                            newInnerContent = newInnerContent.replace(propRegex, `$1${value}$3`);
+                            modified = true;
+                        } else {
+                            // 属性不存在，需要添加
+                            // 查找PropertyList标签
+                            const propertyListRegex = /(<PropertyList>)([\s\S]*?)(<\/PropertyList>)/;
+                            const propertyListMatch = newInnerContent.match(propertyListRegex);
+                            
+                            if (propertyListMatch) {
+                                // 在PropertyList中添加新属性
+                                const newProperty = `\n\t\t\t\t\t\t<Property Name="${wwuPropName}" Type="${propType}" Value="${value}"/>`;
+                                newInnerContent = newInnerContent.replace(
+                                    propertyListRegex,
+                                    `$1$2${newProperty}$3`
+                                );
+                                modified = true;
+                            }
+                        }
+                    }
+                }
+
+                if (modified) {
+                    modifiedCount++;
+                }
+                return openTag + newInnerContent + closeTag;
+            });
+        }
+
+        // 写回文件
+        fs.writeFileSync(wwuPath, content, 'utf-8');
+
+        console.log(`成功修改 ${modifiedCount} 个RTPC`);
+        return {
+            success: true,
+            count: modifiedCount,
+            message: `成功修改 ${modifiedCount} 个RTPC`
+        };
+    } catch (error) {
+        console.error('保存到WWU文件失败:', error);
+        return {
+            success: false,
+            message: error.message || '保存到WWU文件失败',
+            count: 0
+        };
+    }
+}
+
 module.exports = {
     testConnection,
     getOriginalsPath,
@@ -2057,6 +2272,8 @@ module.exports = {
     getCurrentRecordingInfo,
     clearCurrentRecordingInfo,
     rtpcScan,
-    rtpcApply
+    rtpcApply,
+    rtpcReadWwu,
+    rtpcApplyWwu
 };
 

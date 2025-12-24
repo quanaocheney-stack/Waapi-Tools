@@ -400,35 +400,6 @@
             fill: currentColor;
         }
 
-        /* RTPC变化高亮样式 */
-        .rtpc-changed-row {
-            background: rgba(255, 193, 7, 0.15) !important;
-        }
-
-        .rtpc-changed-cell {
-            background: rgba(255, 193, 7, 0.3) !important;
-            font-weight: 500;
-        }
-
-        .rtpc-old-value {
-            color: var(--danger-color);
-            text-decoration: line-through;
-            opacity: 0.7;
-        }
-
-        .rtpc-new-value {
-            color: var(--success-color);
-            font-weight: bold;
-        }
-
-        [data-theme="dark"] .rtpc-changed-row {
-            background: rgba(255, 193, 7, 0.1) !important;
-        }
-
-        [data-theme="dark"] .rtpc-changed-cell {
-            background: rgba(255, 193, 7, 0.2) !important;
-        }
-
         .path-display {
             display: flex;
             align-items: center;
@@ -2863,10 +2834,6 @@
 
         // 导入CSV按钮点击
         rtpcImportBtn.addEventListener('click', () => {
-            if (rtpcResults.length === 0) {
-                alert(typeof t === 'function' ? t('rtpcManager.alertScanFirst') : '请先扫描RTPC，再导入CSV进行对比');
-                return;
-            }
             rtpcImportFile.click();
         });
 
@@ -3120,86 +3087,15 @@
 
         // 更新表格并高亮变化
         function updateRtpcTableWithChanges() {
-            const countText = typeof t === 'function' ? t('rtpcManager.resultsCount') : '个RTPC';
-            rtpcCount.textContent = `${rtpcResults.length} ${countText}`;
-            rtpcClearBtn.disabled = rtpcResults.length === 0;
+            updateRtpcTable();
             
-            if (rtpcResults.length === 0) {
-                const emptyText = typeof t === 'function' ? t('rtpcManager.emptyState') : '请点击"扫描所有RTPC"按钮';
-                rtpcBody.innerHTML = `<tr><td colspan="11" class="empty-state" id="rtpcEmptyState">${emptyText}</td></tr>`;
-                return;
-            }
-            
-            // 创建变化映射，方便快速查找
-            const changesMap = {};
+            // 高亮有变化的行
             rtpcChanges.forEach(change => {
-                changesMap[change.id] = change;
+                const row = rtpcBody.querySelector(`tr[data-id="${change.id}"]`);
+                if (row) {
+                    row.style.background = 'rgba(255, 193, 7, 0.2)';
+                }
             });
-            
-            rtpcBody.innerHTML = rtpcResults.map((item, index) => {
-                const change = changesMap[item.id];
-                const modeName = interpolationModes[item.mode] || 'None';
-                const hasChange = !!change;
-                const rowClass = hasChange ? 'rtpc-changed-row' : '';
-                
-                // 生成单元格，如果有变化则高亮并显示新旧值
-                const minCell = change && change.min !== undefined 
-                    ? `<td class="rtpc-changed-cell"><span class="rtpc-old-value">${item.min}</span> → <span class="rtpc-new-value">${change.min}</span></td>`
-                    : `<td>${item.min}</td>`;
-                    
-                const maxCell = change && change.max !== undefined 
-                    ? `<td class="rtpc-changed-cell"><span class="rtpc-old-value">${item.max}</span> → <span class="rtpc-new-value">${change.max}</span></td>`
-                    : `<td>${item.max}</td>`;
-                    
-                const defaultCell = change && change.default !== undefined 
-                    ? `<td class="rtpc-changed-cell"><span class="rtpc-old-value">${item.default}</span> → <span class="rtpc-new-value">${change.default}</span></td>`
-                    : `<td>${item.default}</td>`;
-                    
-                const bindToCell = change && change.bindTo !== undefined 
-                    ? `<td class="rtpc-changed-cell"><span class="rtpc-old-value">${item.bindTo || 'None'}</span> → <span class="rtpc-new-value">${change.bindTo}</span></td>`
-                    : `<td>${item.bindTo || 'None'}</td>`;
-                
-                const newModeName = change && change.mode !== undefined ? interpolationModes[change.mode] : null;
-                const modeCell = newModeName !== null
-                    ? `<td class="rtpc-changed-cell"><span class="rtpc-old-value">${modeName}</span> → <span class="rtpc-new-value">${newModeName}</span></td>`
-                    : `<td>${modeName}</td>`;
-                
-                const slewValue = item.mode === 1 ? item.slewRate : '-';
-                const newSlewValue = change && change.slewRate !== undefined ? change.slewRate : null;
-                const slewCell = newSlewValue !== null
-                    ? `<td class="rtpc-changed-cell"><span class="rtpc-old-value">${slewValue}</span> → <span class="rtpc-new-value">${newSlewValue}</span></td>`
-                    : `<td>${slewValue}</td>`;
-                
-                const attackValue = item.mode === 2 ? item.attack : '-';
-                const newAttackValue = change && change.attack !== undefined ? change.attack : null;
-                const attackCell = newAttackValue !== null
-                    ? `<td class="rtpc-changed-cell"><span class="rtpc-old-value">${attackValue}</span> → <span class="rtpc-new-value">${newAttackValue}</span></td>`
-                    : `<td>${attackValue}</td>`;
-                
-                const releaseValue = item.mode === 2 ? item.release : '-';
-                const newReleaseValue = change && change.release !== undefined ? change.release : null;
-                const releaseCell = newReleaseValue !== null
-                    ? `<td class="rtpc-changed-cell"><span class="rtpc-old-value">${releaseValue}</span> → <span class="rtpc-new-value">${newReleaseValue}</span></td>`
-                    : `<td>${releaseValue}</td>`;
-                
-                return `
-                    <tr data-id="${item.id}" class="${rowClass}">
-                        <td>
-                            <button class="btn-locate" onclick="locateRtpc('${item.id}')" title="定位到Wwise">📍</button>
-                        </td>
-                        <td>${index + 1}</td>
-                        <td title="${item.path || ''}">${item.name}</td>
-                        ${minCell}
-                        ${maxCell}
-                        ${defaultCell}
-                        ${bindToCell}
-                        ${modeCell}
-                        ${slewCell}
-                        ${attackCell}
-                        ${releaseCell}
-                    </tr>
-                `;
-            }).join('');
         }
 
         // 定位RTPC到Wwise

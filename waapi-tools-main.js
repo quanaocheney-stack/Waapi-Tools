@@ -236,5 +236,20 @@ ipcMain.handle('waapi-rtpc-apply', async (event, port, changes) => {
     return await waapiTools.rtpcApply(port, changes);
 });
 
+// RTPC管理 - 读取WWU文件
+ipcMain.handle('waapi-rtpc-read-wwu', async (event, wwuPath) => {
+    return await waapiTools.rtpcReadWwu(wwuPath);
+});
+
+// RTPC管理 - 保存修改到WWU文件
+ipcMain.handle('waapi-rtpc-apply-wwu', async (event, wwuPath, changes) => {
+    return await waapiTools.rtpcApplyWwu(wwuPath, changes);
+});
+
+// 显示消息对话框
+ipcMain.handle('show-message-box', async (event, options) => {
+    return await dialog.showMessageBox(mainWindow, options);
+});
+
 
 
